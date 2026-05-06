@@ -65,17 +65,29 @@ rm -rf "$APP"
 osacompile -o "$APP" "$DIR/dxo2photos.applescript"
 
 # ---------------------------------------------------------------------------
-# 5. Write project directory path into bundle
+# 5. Rename binary and icon from the osacompile default "droplet" to "dxo2photos"
+# ---------------------------------------------------------------------------
+echo "[build] Renaming bundle artefacts ..."
+mv "$APP/Contents/MacOS/droplet" "$APP/Contents/MacOS/dxo2photos"
+mv "$APP/Contents/Resources/droplet.icns" "$APP/Contents/Resources/dxo2photos.icns"
+mv "$APP/Contents/Resources/droplet.rsrc" "$APP/Contents/Resources/dxo2photos.rsrc"
+PLIST="$APP/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleExecutable dxo2photos" "$PLIST"
+/usr/libexec/PlistBuddy -c "Set :CFBundleIconFile   dxo2photos" "$PLIST"
+/usr/libexec/PlistBuddy -c "Set :CFBundleIconName   dxo2photos" "$PLIST"
+
+# ---------------------------------------------------------------------------
+# 6. Write project directory path into bundle
 #    The AppleScript reads this to locate dxo2photos.sh at runtime,
 #    even when the app is run via a symlink from /Applications.
 # ---------------------------------------------------------------------------
 echo "$DIR" > "$APP/Contents/Resources/project_path.txt"
 
 # ---------------------------------------------------------------------------
-# 6. Install custom icon
+# 7. Install custom icon
 # ---------------------------------------------------------------------------
 echo "[build] Installing icon ..."
-cp "$DIR/dxo2photos.icns" "$APP/Contents/Resources/droplet.icns"
+cp "$DIR/dxo2photos.icns" "$APP/Contents/Resources/dxo2photos.icns"
 touch "$APP"   # prompt Finder to refresh its icon cache
 
 # ---------------------------------------------------------------------------
