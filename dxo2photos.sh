@@ -9,6 +9,10 @@
 
 set -euo pipefail
 
+# Ensure Homebrew tools are on the PATH (Apple Silicon: /opt/homebrew, Intel: /usr/local)
+# This is especially important when called via AppleScript, which uses a minimal PATH.
+export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+
 # ---------------------------------------------------------------------------
 # Configuration — adjust as needed
 # ---------------------------------------------------------------------------

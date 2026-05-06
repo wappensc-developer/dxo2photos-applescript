@@ -15,6 +15,9 @@
 
 set -euo pipefail
 
+# Ensure Homebrew tools are on the PATH (Apple Silicon: /opt/homebrew, Intel: /usr/local)
+export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP="$DIR/dxo2photos.app"
 VENV="$DIR/.venv"
