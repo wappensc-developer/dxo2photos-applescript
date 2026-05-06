@@ -5,10 +5,10 @@
 ## 1. Introduction
 
 ### 1.1 Overview
-`dxo2photos` is a Python script for macOS that automates the workflow for processing images edited with DxO PhotoLab. It converts star ratings from DxO into IPTC keywords, moves or copies the images into a defined folder structure, and imports them into Apple Photos.
+`dxo2photos` is a macOS tool that automates the workflow for processing images edited with DxO PhotoLab. It converts star ratings from DxO into IPTC keywords, moves or copies images into a defined folder structure, imports them into Apple Photos, and integrates directly into DxO PhotoLab as a native external program via a macOS app bundle.
 
 ### 1.2 Purpose
-Images edited with DxO PhotoLab are to be efficiently imported into Apple Photos. Star ratings from DxO are stored as IPTC keywords. The images are moved (or copied) into a folder structure for exported images before being imported into Photos.
+Images edited with DxO PhotoLab are to be efficiently imported into Apple Photos. Star ratings from DxO are stored as IPTC keywords. The images are moved (or copied) into a folder structure for exported images before being imported into Photos. DxO PhotoLab can trigger the entire workflow automatically by calling `dxo2photos.app` as an external program.
 
 ## 2. Functional Requirements
 
@@ -48,11 +48,12 @@ Images edited with DxO PhotoLab are to be efficiently imported into Apple Photos
 
 ### 3.1 Platform
 - The program runs on macOS only.
-- Uses macOS-specific features for the Photos import (AppleScript via `osascript`).
+- Uses macOS-specific features for the Photos import (AppleScript via `osascript`) and for the DxO integration (app bundle via `osacompile`).
 
 ### 3.2 User Interface
-- No graphical user interface required.
-- The entry point is `dxo2photos.sh`; the program runs as a command-line tool with the following options:
+- No graphical user interface required for normal operation.
+- For DxO PhotoLab integration, `dxo2photos.app` acts as a native macOS application that receives files via the `on open` handler.
+- For command-line use, the entry point is `dxo2photos.sh` with the following options:
 
 | Option | Short | Description |
 |--------|-------|-------------|
@@ -73,23 +74,39 @@ Images edited with DxO PhotoLab are to be efficiently imported into Apple Photos
 ## 4. Architecture and Design
 
 ### 4.1 Components
-- **Bash wrapper** (`dxo2photos.sh`): Entry point; automatically sets up the Python environment on the first run; configures `OUTPUT_DIR`; supports invocation via symlink.
-- **Python main program** (`dxo2photos.py`): Contains all program logic in a single file:
-  - *Configuration*: `ROOT_DIR` as fallback target directory
+
+- **Build script** (`build_app.sh`): Run once after installation. Sets up the Python virtual environment, installs dependencies, generates the app icon, and compiles `dxo2photos.app`. Writes the absolute project directory path into the app bundle so the app can locate its scripts at runtime.
+
+- **AppleScript application** (`dxo2photos.app`): Compiled from `dxo2photos.applescript` by `build_app.sh`. Registered in DxO PhotoLab as an external program. Receives exported image paths from DxO via the macOS `on open` handler and delegates to `dxo2photos.sh`. Reads the project directory path from `Contents/Resources/project_path.txt` — this allows the app to be symlinked (e.g. into `/Applications`) while scripts and the Python environment remain in the project directory.
+
+- **AppleScript source** (`dxo2photos.applescript`): Human-readable source for `dxo2photos.app`, tracked in version control.
+
+- **Icon generator** (`create_icon.py`): Generates `dxo2photos.icns` at all required macOS icon resolutions using Pillow. Called by `build_app.sh`.
+
+- **Bash wrapper** (`dxo2photos.sh`): Runtime entry point for command-line use. Resolves its own location via symlinks, verifies that the Python environment exists, and invokes `dxo2photos.py`. Configures `OUTPUT_DIR` and `COPY_FLAG`.
+
+- **Python main program** (`dxo2photos.py`): Contains all processing logic in a single file:
   - *EXIF handling*: reads star ratings and EXIF date; writes IPTC keywords via `exiftool`
   - *File management*: moves or copies images, removes `_dxo`, sets modification date
   - *Photos import*: integration with Apple Photos via AppleScript
   - *CLI*: processes all command-line arguments
 
-### 4.2 Workflow (normal mode)
-1. `dxo2photos.sh` checks/sets up the Python environment and calls `dxo2photos.py`.
+### 4.2 Workflow (DxO PhotoLab integration)
+1. User selects images in DxO PhotoLab and triggers the external program.
+2. DxO exports the images and opens them with `dxo2photos.app`.
+3. The app's `on open` handler reads `project_path.txt` to locate `dxo2photos.sh`.
+4. `dxo2photos.sh` is called with the exported image paths.
+5. Processing continues as in the normal workflow (steps 2–6 below).
+
+### 4.3 Workflow (normal mode)
+1. `dxo2photos.sh` verifies the Python environment and calls `dxo2photos.py`.
 2. Input: list of image files (directly or via `--directory`).
 3. For each image: read EXIF rating, write IPTC keyword.
 4. Move or copy images, remove `_dxo` from filenames.
 5. Set modification date in target directory from EXIF.
 6. Import target directory into Photos, create album named after the directory.
 
-### 4.3 Workflow (--import-only)
+### 4.4 Workflow (--import-only)
 1. Input: path to an existing directory.
 2. For each image file in the directory: set modification date from EXIF.
 3. Import directory into Photos, create album named after the directory.
@@ -100,20 +117,30 @@ Images edited with DxO PhotoLab are to be efficiently imported into Apple Photos
 - `exiftool`: `brew install exiftool`
 - Python 3.x: pre-installed on macOS or `brew install python3`
 
-### Python packages (installed automatically by `dxo2photos.sh`)
+### Python packages (installed automatically by `build_app.sh`)
 - `piexif>=1.1.3`: EXIF reading (rating, DateTimeOriginal)
+- `Pillow>=9.0.0`: icon generation
 
-### Files to distribute
-Only two files are required to distribute the program:
-- `dxo2photos.sh` — Bash wrapper and entry point
-- `dxo2photos.py` — Python main program
+### Distribution
+The complete project directory is distributed. All required files are included; no separate packaging step is needed.
 
-### Installation via symlink
-For system-wide access, a symlink can be created in `/usr/local/bin`:
+### Installation
 ```
-ln -s /path/to/dxo2photos.sh /usr/local/bin/dxo2photos
+bash build_app.sh
 ```
-The script automatically resolves its real location even when called through a symlink.
+This single command sets up the Python environment, generates the icon, and compiles the app. It must be run once after cloning or copying the project directory.
+
+### Optional: Finder / DxO access via symlink
+```
+ln -s /path/to/dxo2photos/dxo2photos.app /Applications/dxo2photos.app
+```
+
+### Optional: command-line access via symlink
+```
+ln -s /path/to/dxo2photos/dxo2photos.sh /usr/local/bin/dxo2photos
+```
+
+Both symlinks point back to the project directory. If the project directory is moved, run `bash build_app.sh` again.
 
 ## 6. Test Cases
 
@@ -127,8 +154,9 @@ The script automatically resolves its real location even when called through a s
 - Successful import into Photos with correct album name; duplicates are not imported again.
 - `--copy`: source file is preserved, target file is created.
 - `--import-only`: directory is imported directly, modification dates are set beforehand.
-- Invocation via symlink: script correctly locates `dxo2photos.py`.
-- First run without `.venv`: Python environment is set up automatically.
+- `bash build_app.sh`: Python environment is created, icon generated, `dxo2photos.app` compiled.
+- Invocation via symlink from `/Applications`: app correctly resolves the project directory via `project_path.txt`.
+- DxO PhotoLab integration: exported images are processed automatically when the external program is triggered.
 
 ## 7. Assumptions and Constraints
 
@@ -137,3 +165,4 @@ The script automatically resolves its real location even when called through a s
 - `exiftool` is installed via Homebrew (`brew install exiftool`).
 - Keyword format: "X*" (e.g. 3 stars → "3*", unrated → "0*"). The original star rating is preserved in the EXIF data.
 - The source directory contains a marker directory (`DxOExport` or `TestImages`) used to determine the relative subdirectory structure.
+- If the project directory is moved after the initial build, `build_app.sh` must be run again to update the path stored in the app bundle.

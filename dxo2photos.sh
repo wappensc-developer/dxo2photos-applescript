@@ -5,7 +5,7 @@
 #   ./dxo2photos.sh "image1_dxo.jpg" "image with spaces_dxo.jpg" ...
 #
 # Filenames containing spaces must be quoted.
-# The Python environment is set up automatically on the first run.
+# Run build_app.sh once before first use to set up the Python environment.
 
 set -euo pipefail
 
@@ -27,44 +27,28 @@ OUTPUT_DIR="$HOME/Pictures/ExportedImages"
 COPY_FLAG="--copy"          # Leave empty ("") to move instead of copy
 
 # ---------------------------------------------------------------------------
-# Setup (runs once on first call, only if .venv does not exist yet)
-# ---------------------------------------------------------------------------
-
-# 1. Check for exiftool
-if ! command -v exiftool &>/dev/null; then
-    echo "[setup] Error: 'exiftool' is not installed." >&2
-    echo "[setup] Please install it with: brew install exiftool" >&2
-    exit 1
-fi
-
-# 2. Check for python3
-if ! command -v python3 &>/dev/null; then
-    echo "[setup] Error: 'python3' not found." >&2
-    echo "[setup] Please install Python 3: https://www.python.org or brew install python3" >&2
-    exit 1
-fi
-
-# 3. Create virtual environment and install packages (first run only)
-if [[ ! -d "$VENV_DIR" ]]; then
-    echo "[setup] Creating Python virtual environment ..." >&2
-    python3 -m venv "$VENV_DIR" >&2
-    echo "[setup] Installing Python packages ..." >&2
-    "$VENV_DIR/bin/pip" install --quiet --upgrade pip >&2
-    "$VENV_DIR/bin/pip" install --quiet "Pillow>=9.0.0" "piexif>=1.1.3" >&2
-    echo "[setup] Setup complete." >&2
-fi
-
-# ---------------------------------------------------------------------------
 # Checks
 # ---------------------------------------------------------------------------
-if [[ $# -eq 0 ]]; then
-    echo "Error: no image files specified." >&2
-    echo "Usage: $0 <image1> [<image2> ...]" >&2
+if [[ ! -f "$PYTHON" ]]; then
+    echo "Error: Python environment not found at $VENV_DIR" >&2
+    echo "Please run build_app.sh first to set up the environment." >&2
     exit 1
 fi
 
 if [[ ! -f "$DXO2PHOTOS" ]]; then
     echo "Error: dxo2photos.py not found: $DXO2PHOTOS" >&2
+    exit 1
+fi
+
+if ! command -v exiftool &>/dev/null; then
+    echo "Error: 'exiftool' is not installed." >&2
+    echo "Please install it with: brew install exiftool" >&2
+    exit 1
+fi
+
+if [[ $# -eq 0 ]]; then
+    echo "Error: no image files specified." >&2
+    echo "Usage: $0 <image1> [<image2> ...]" >&2
     exit 1
 fi
 
