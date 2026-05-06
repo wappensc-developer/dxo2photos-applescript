@@ -82,7 +82,7 @@ The shell script `dxo2photos.sh` can also be used directly from the command line
 ### Process individual files
 
 ```
-dxo2photos.sh "image1_dxo.jpg" "image2_dxo.jpg"
+dxo2photos.sh "image1_openWith.jpg" "image2_openWith.jpg"
 ```
 
 ### Scan and process a directory
@@ -127,7 +127,7 @@ COPY_FLAG="--copy"   # set to "" to move instead of copy
 - Preserves the original star rating in the EXIF data
 - Moves or copies images into a configurable folder structure
 - Preserves the relative subdirectory structure of the source directory
-- Removes `_dxo` from filenames (e.g. `image_dxo.jpg` → `image.jpg`)
+- Removes `_openWith` from filenames (e.g. `image_openWith.jpg` → `image.jpg`)
 - Sets the modification date to the EXIF capture date
 - Imports images into Apple Photos and creates an album named after the directory
 - Skips duplicate images already present in the Photos library

@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Convert DxO star ratings (0–5) to IPTC keywords (`0*` – `5*`)
 - Move or copy exported images into a configurable folder structure
 - Preserve relative subdirectory structure from source directory
-- Remove `_dxo` suffix from filenames
+- Remove `_openWith` suffix from filenames
 - Set file modification date from EXIF `DateTimeOriginal`
 - Import images into Apple Photos via AppleScript; create album named after the directory
 - Skip duplicate images already present in the Photos library

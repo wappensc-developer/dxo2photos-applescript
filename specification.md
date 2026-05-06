@@ -21,11 +21,11 @@ Images edited with DxO PhotoLab are to be efficiently imported into Apple Photos
 - **Converting to IPTC keywords:** Convert the star ratings into IPTC keywords in the format "0*", "1*", "2*", "3*", "4*", "5*" (e.g. 5 stars → "5*", no rating → "0*"). The original star rating in the EXIF data is preserved.
 - **Writing keywords:** Add the keyword as an IPTC keyword to the image file without overwriting existing keywords. Writing is done via `exiftool`.
 - **Moving or copying images:** Move or copy the processed images into a defined folder structure for exported images. The target directory is configured as `OUTPUT_DIR` in `dxo2photos.sh` (default: `~/Pictures/ExportedImages`) and can be overridden via `--output-dir`. The relative subdirectory structure of the original file (e.g. `a/b`) is preserved below the target directory.
-- **Filename adjustment:** Remove the suffix `_dxo` from filenames in the target directory while preserving the rest of the name and file type (e.g. `imagename_dxo.jpg` → `imagename.jpg`).
+- **Filename adjustment:** Remove the suffix `_openWith` from filenames in the target directory while preserving the rest of the name and file type (e.g. `imagename_openWith.jpg` → `imagename.jpg`).
 - **Modification date:** Set the modification date (`mtime`) of the final files in the target directory to the original capture date of the image, based on the EXIF field `DateTimeOriginal`. This is done via `os.utime()` (pure Python). This step takes place in the target directory before the images are imported into Photos.
 
 #### Example scenario
-- Source: `/Users/armin/Pictures/DxOExport/a/b/imagename_dxo.jpg`
+- Source: `/Users/armin/Pictures/DxOExport/a/b/imagename_openWith.jpg`
 - Target root: `~/Pictures/ExportedImages`
 - Target path after processing: `~/Pictures/ExportedImages/a/b/imagename.jpg`
 - File metadata: original EXIF capture date is set as the modification date of the target file.
@@ -58,7 +58,7 @@ Images edited with DxO PhotoLab are to be efficiently imported into Apple Photos
 | Option | Short | Description |
 |--------|-------|-------------|
 | `<file> [<file> ...]` | | Process individual image files |
-| `--directory DIRECTORY` | `-d` | Scan and process all `*_dxo.*` files in a directory |
+| `--directory DIRECTORY` | `-d` | Scan and process all `*_openWith.*` files in a directory |
 | `--copy` | | Copy images to the target directory instead of moving |
 | `--output-dir DIRECTORY` | `-o` | Override the target directory (default: `OUTPUT_DIR` from `dxo2photos.sh`) |
 | `--import-only DIRECTORY` | `-i` | Import an existing directory directly into Photos (sets modification date from EXIF first) |
@@ -87,7 +87,7 @@ Images edited with DxO PhotoLab are to be efficiently imported into Apple Photos
 
 - **Python main program** (`dxo2photos.py`): Contains all processing logic in a single file:
   - *EXIF handling*: reads star ratings and EXIF date; writes IPTC keywords via `exiftool`
-  - *File management*: moves or copies images, removes `_dxo`, sets modification date
+  - *File management*: moves or copies images, removes `_openWith`, sets modification date
   - *Photos import*: integration with Apple Photos via AppleScript
   - *CLI*: processes all command-line arguments
 
@@ -102,7 +102,7 @@ Images edited with DxO PhotoLab are to be efficiently imported into Apple Photos
 1. `dxo2photos.sh` verifies the Python environment and calls `dxo2photos.py`.
 2. Input: list of image files (directly or via `--directory`).
 3. For each image: read EXIF rating, write IPTC keyword.
-4. Move or copy images, remove `_dxo` from filenames.
+4. Move or copy images, remove `_openWith` from filenames.
 5. Set modification date in target directory from EXIF.
 6. Import target directory into Photos, create album named after the directory.
 
@@ -147,7 +147,7 @@ Both symlinks point back to the project directory. If the project directory is m
 - Images with 1–5 stars receive the correct keyword (e.g. "3*").
 - Unrated images receive the keyword "0*".
 - Faulty images are skipped with a warning.
-- `_dxo` suffix is correctly removed from filenames.
+- `_openWith` suffix is correctly removed from filenames.
 - Relative subdirectory structure is preserved in the target directory.
 - Modification date in the target directory matches the EXIF date.
 - Directory names containing spaces are handled correctly.

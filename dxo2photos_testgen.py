@@ -32,7 +32,7 @@ def create_test_images(spaces_in_name=False):
     base.mkdir(parents=True, exist_ok=True)
 
     for rating, label in TEST_CASES:
-        filename = base / f'photo_{label}_dxo.jpg'
+        filename = base / f'photo_{label}_openWith.jpg'
         color = (int(255 * rating / 5), 100, 200)
         img = Image.new('RGB', (400, 300), color=color)
 

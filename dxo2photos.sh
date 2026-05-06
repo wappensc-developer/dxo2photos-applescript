@@ -2,7 +2,7 @@
 # dxo2photos.sh — Wrapper for dxo2photos.py
 #
 # Usage:
-#   ./dxo2photos.sh "image1_dxo.jpg" "image with spaces_dxo.jpg" ...
+#   ./dxo2photos.sh "image1_openWith.jpg" "image with spaces_openWith.jpg" ...
 #
 # Filenames containing spaces must be quoted.
 # Run build_app.sh once before first use to set up the Python environment.

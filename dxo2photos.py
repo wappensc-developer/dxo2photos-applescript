@@ -128,7 +128,7 @@ def move_and_rename_image(source_path, copy=False, root_dir=None):
         target_dir = effective_root / Path(*relative_parts[:-1]) if len(relative_parts) > 1 else effective_root
         target_dir.mkdir(parents=True, exist_ok=True)
 
-        target_path = target_dir / source_path.name.replace('_dxo', '')
+        target_path = target_dir / source_path.name.replace('_openWith', '')
 
         if copy:
             shutil.copy2(str(source_path), str(target_path))
@@ -206,7 +206,7 @@ def main():
     parser = argparse.ArgumentParser(description='Process DxO images for Apple Photos import')
     parser.add_argument('files', nargs='*', help='Image files to process')
     parser.add_argument('--directory', '-d', metavar='DIRECTORY',
-                        help='Scan and process all *_dxo.* files in a directory')
+                        help='Scan and process all *_openWith.* files in a directory')
     parser.add_argument('--copy', action='store_true',
                         help='Copy images to target directory instead of moving')
     parser.add_argument('--import-only', '-i', metavar='DIRECTORY',
@@ -236,7 +236,7 @@ def main():
         if not dir_path.exists():
             print(f"Directory {args.directory} does not exist.")
             sys.exit(1)
-        image_files = list(dir_path.rglob('*_dxo.*'))
+        image_files = list(dir_path.rglob('*_openWith.*'))
     else:
         image_files = [Path(f) for f in args.files if Path(f).exists()]
 
