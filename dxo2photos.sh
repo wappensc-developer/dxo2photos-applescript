@@ -28,7 +28,7 @@ VENV_DIR="$SCRIPT_DIR/.venv"
 PYTHON="$VENV_DIR/bin/python"
 DXO2PHOTOS="$SCRIPT_DIR/dxo2photos.py"
 OUTPUT_DIR="$HOME/Pictures/ExportedImages"
-COPY_FLAG="--copy"          # Leave empty ("") to move instead of copy
+COPY_FLAG=""                # Set to "--copy" to copy instead of move
 
 # ---------------------------------------------------------------------------
 # Checks

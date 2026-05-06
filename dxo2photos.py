@@ -4,7 +4,7 @@ dxo2photos - Automated processing and import of DxO PhotoLab images into Apple P
 
 This script processes images exported from DxO PhotoLab:
 - Converts star ratings to IPTC keywords (e.g. "3*", "0*" for unrated)
-- Moves or copies images into a defined folder structure
+- Moves or copies images into a folder structure derived from the source path
 - Sets the modification date from EXIF data
 - Imports images into Apple Photos (into an album named after the directory)
 
@@ -106,26 +106,24 @@ def apply_exif_dates(file_path):
 
 
 def move_and_rename_image(source_path, copy=False, root_dir=None):
-    """Moves or copies the image, renames it and sets the modification date."""
+    """Moves or copies the image, renames it and sets the modification date.
+
+    The target path is built from the two innermost directory levels of source_path
+    (parent and grandparent). Falls back to one level or root if source_path is shallower.
+    """
     source_path = Path(source_path)
     effective_root = Path(root_dir) if root_dir else ROOT_DIR
     try:
         exif_date = get_exif_datetime(source_path)
 
-        # Determine relative path by searching for a known marker directory
-        parts = source_path.parts
-        relative_parts = None
-        for marker in ['DxOExport', 'TestImages']:
-            if marker in parts:
-                relative_parts = parts[parts.index(marker) + 1:]
-                break
-        if not relative_parts:
-            try:
-                relative_parts = source_path.relative_to(Path.cwd()).parts
-            except ValueError:
-                relative_parts = (source_path.name,)
-
-        target_dir = effective_root / Path(*relative_parts[:-1]) if len(relative_parts) > 1 else effective_root
+        parent_name = source_path.parent.name
+        grandparent_name = source_path.parent.parent.name
+        if grandparent_name and grandparent_name != '.':
+            target_dir = effective_root / grandparent_name / parent_name
+        elif parent_name and parent_name != '.':
+            target_dir = effective_root / parent_name
+        else:
+            target_dir = effective_root
         target_dir.mkdir(parents=True, exist_ok=True)
 
         target_path = target_dir / source_path.name.replace('_openWith', '')
