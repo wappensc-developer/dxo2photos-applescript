@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-05-07
+
+### Changed
+- Rewrote `dxo2photos.applescript` as a self-contained droplet: all processing
+  (EXIF keywords, file move, mtime, Photos import) is now done directly in
+  AppleScript without calling Python or a shell script.
+- The droplet controls Apple Photos directly via Apple Events.  This fixes
+  silent import failures when called from DxO PhotoLab, caused by macOS not
+  granting Automation permissions to child processes spawned by the previous
+  Python/`osascript` chain.
+- `build_app.sh` simplified: no Python virtual environment or pip packages
+  required at build time; Python is only used optionally for icon generation.
+
+### Removed
+- Python runtime dependency (`piexif`, `.venv`) — no longer needed at runtime.
+- CLI usage via `dxo2photos.sh` — the app bundle is the only supported interface.
+
 ## [1.0.0] - 2026-05-06
 
 ### Added

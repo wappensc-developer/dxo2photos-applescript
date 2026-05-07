@@ -1,25 +1,22 @@
 # dxo2photos
 
-[![Version](https://img.shields.io/badge/version-1.0.0-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.0.0-blue)](CHANGELOG.md)
 [![Platform](https://img.shields.io/badge/platform-macOS-lightgrey)](https://www.apple.com/macos/)
-[![Python](https://img.shields.io/badge/python-3.x-blue)](https://www.python.org)
+[![AppleScript](https://img.shields.io/badge/language-AppleScript-orange)](dxo2photos.applescript)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-A macOS tool that automates the workflow for processing images edited with DxO PhotoLab. It converts star ratings into IPTC keywords, moves or copies images into a defined folder structure, imports them into Apple Photos, and integrates directly into DxO PhotoLab as an external program via a native macOS app bundle.
+A macOS tool that automates the workflow for processing images edited with DxO PhotoLab. It converts star ratings into IPTC keywords, moves images into a defined folder structure, imports them into Apple Photos, and integrates directly into DxO PhotoLab as an external program via a native macOS app bundle.
 
 **Author:** [wappensc](https://github.com/wappensc)
 
 ## Prerequisites
 
 - macOS
-- Python 3.x (pre-installed on macOS, or `brew install python3`)
 - [exiftool](https://exiftool.org): `brew install exiftool`
 - Apple Photos installed
 - Images exported from DxO PhotoLab with EXIF star ratings
 
 ## Installation
-
-Distribution is a complete project directory. A single build script sets up the entire environment.
 
 ### 1. Install exiftool
 
@@ -27,7 +24,7 @@ Distribution is a complete project directory. A single build script sets up the 
 brew install exiftool
 ```
 
-### 2. Clone or copy the project directory
+### 2. Clone the project directory
 
 ```
 git clone https://github.com/wappensc/dxo2photos.git
@@ -40,34 +37,17 @@ cd dxo2photos
 bash build_app.sh
 ```
 
-This does everything in one step:
-- Creates the Python virtual environment (`.venv`) and installs all dependencies
-- Generates the app icon
-- Compiles `dxo2photos.app`
+This compiles `dxo2photos.applescript` into `dxo2photos.app` and prompts for the output directory (default: `~/Pictures/ExportedImages`).
 
 ### 4. Optional: make accessible system-wide
-
-**For DxO PhotoLab and the Finder** — symlink the app into `/Applications`:
 
 ```
 ln -s "$PWD/dxo2photos.app" /Applications/dxo2photos.app
 ```
 
-**For command-line use** — symlink the shell script into `/usr/local/bin`:
-
-```
-ln -s "$PWD/dxo2photos.sh" /usr/local/bin/dxo2photos
-```
-
-Both symlinks point back to the project directory, so all scripts and the Python environment stay in one place. If the project directory moves, run `bash build_app.sh` again to update `dxo2photos.app`.
-
 ## DxO PhotoLab Integration
 
-DxO PhotoLab's **External Programs** feature requires a native macOS `.app` bundle — a plain shell script cannot be registered this way, because macOS Launch Services only recognises proper app bundles.
-
-`dxo2photos.app` is compiled by `build_app.sh` from `dxo2photos.applescript`. It receives the exported image paths from DxO via the macOS `on open` handler and forwards them to `dxo2photos.sh` in the project directory. The absolute project path is stored in the bundle at build time, so the app works correctly even when run via a Finder symlink.
-
-### Register in DxO PhotoLab
+### Register dxo2photos.app
 
 1. Open DxO PhotoLab → **Preferences** → **External Programs**
 2. Click **+** and select `dxo2photos.app` (or its symlink in `/Applications`)
@@ -75,57 +55,22 @@ DxO PhotoLab's **External Programs** feature requires a native macOS `.app` bund
 
 DxO exports the images and passes them to the app, which processes and imports them into Apple Photos automatically.
 
-## Usage
+### Architecture
 
-The shell script `dxo2photos.sh` can also be used directly from the command line.
+`dxo2photos.app` is a compiled AppleScript droplet. The droplet's process receives the files from DxO PhotoLab via the macOS `on open` handler and controls Apple Photos directly via Apple Events — without any intermediate process. This is necessary because macOS grants Automation permissions per process: child processes such as `osascript` spawned by a shell script cannot inherit the permission, causing Photos to silently reject the import.
 
-### Process individual files
-
-```
-dxo2photos.sh "image1_openWith.jpg" "image2_openWith.jpg"
-```
-
-### Scan and process a directory
-
-```
-dxo2photos.sh --directory /path/to/DxOExport
-```
-
-### Copy instead of move
-
-```
-dxo2photos.sh --directory /path/to/DxOExport --copy
-```
-
-### Specify a custom target directory
-
-```
-dxo2photos.sh --directory /path/to/DxOExport --output-dir ~/Pictures/MyExport
-```
-
-### Import an existing directory directly into Photos
-
-```
-dxo2photos.sh --import-only /path/to/directory
-```
+EXIF metadata operations (reading star ratings, writing keywords, setting modification dates) are performed via `exiftool` through `do shell script`.
 
 ## Configuration
 
-The default target directory and the copy/move behaviour are configured at the top of `dxo2photos.sh`:
-
-```bash
-OUTPUT_DIR="$HOME/Pictures/ExportedImages"
-COPY_FLAG="--copy"   # set to "" to move instead of copy
-```
-
-`OUTPUT_DIR` can also be overridden at runtime with `--output-dir`.
+The output directory is set once during `bash build_app.sh` and stored inside the app bundle (`Contents/Resources/output_dir.txt`). To change it, run `bash build_app.sh` again.
 
 ## Features
 
 - Reads EXIF star ratings from DxO images (0–5 stars)
 - Converts ratings to IPTC keywords (e.g. 5 stars → `5*`, unrated → `0*`)
 - Preserves the original star rating in the EXIF data
-- Moves or copies images into a configurable folder structure
+- Moves images into a configurable folder structure
 - Preserves the relative subdirectory structure of the source directory
 - Removes `_openWith` from filenames (e.g. `image_openWith.jpg` → `image.jpg`)
 - Sets the modification date to the EXIF capture date
