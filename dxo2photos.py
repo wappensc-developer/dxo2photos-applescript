@@ -69,10 +69,11 @@ def get_exif_datetime(img_path):
 
 
 def set_exif_keywords(img_path, keyword):
-    """Adds an IPTC keyword to the image file via exiftool without overwriting existing keywords."""
+    """Sets an IPTC keyword, ensuring it appears exactly once (removes before adding)."""
     try:
         result = subprocess.run(
-            ['exiftool', '-overwrite_original', f'-Keywords+={keyword}', str(img_path)],
+            ['exiftool', '-overwrite_original',
+             f'-Keywords-={keyword}', f'-Keywords+={keyword}', str(img_path)],
             capture_output=True, text=True
         )
         if result.returncode == 0:
