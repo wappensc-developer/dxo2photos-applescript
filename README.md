@@ -55,9 +55,19 @@ ln -s "$PWD/dxo2photos.app" /Applications/dxo2photos.app
 
 DxO exports the images and passes them to the app, which processes and imports them into Apple Photos automatically.
 
+### First-time permission grant
+
+The first time dxo2photos runs after installation, macOS will show a dialog:
+
+> **"dxo2photos" wants access to control "Photos".**
+
+Click **Allow**. This grants the Automation permission that Photos import requires. The permission is stored permanently in System Settings → Privacy & Security → Automation and does not need to be granted again.
+
+If the dialog does not appear and imports are silently skipped, open System Settings → Privacy & Security → Automation, find `dxo2photos`, and enable the toggle next to Photos.
+
 ### Architecture
 
-`dxo2photos.app` is a compiled AppleScript droplet. The droplet's process receives the files from DxO PhotoLab via the macOS `on open` handler and controls Apple Photos directly via Apple Events — without any intermediate process. This is necessary because macOS grants Automation permissions per process: child processes such as `osascript` spawned by a shell script cannot inherit the permission, causing Photos to silently reject the import.
+`dxo2photos.app` is a compiled AppleScript droplet, signed ad-hoc with bundle identifier `de.wappensc.dxo2photos`. The droplet's process receives the files from DxO PhotoLab via the macOS `on open` handler and controls Apple Photos directly via Apple Events — without any intermediate process. This is necessary because macOS grants Automation permissions per process: child processes such as `osascript` spawned by a shell script cannot inherit the permission, causing Photos to silently reject the import.
 
 EXIF metadata operations (reading star ratings, writing keywords, setting modification dates) are performed via `exiftool` through `do shell script`.
 
