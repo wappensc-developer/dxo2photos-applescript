@@ -65,12 +65,9 @@ rm -rf "$APP"
 osacompile -o "$APP" "$DIR/dxo2photos.applescript"
 
 # ---------------------------------------------------------------------------
-# 5. Rename binary and icon from the osacompile default "droplet" to "dxo2photos"
+# 5. Update Info.plist (osacompile names the binary after the app)
 # ---------------------------------------------------------------------------
-echo "[build] Renaming bundle artefacts ..."
-mv "$APP/Contents/MacOS/droplet" "$APP/Contents/MacOS/dxo2photos"
-mv "$APP/Contents/Resources/droplet.icns" "$APP/Contents/Resources/dxo2photos.icns"
-mv "$APP/Contents/Resources/droplet.rsrc" "$APP/Contents/Resources/dxo2photos.rsrc"
+echo "[build] Updating Info.plist ..."
 PLIST="$APP/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable dxo2photos" "$PLIST"
 /usr/libexec/PlistBuddy -c "Set :CFBundleIconFile   dxo2photos" "$PLIST"
@@ -78,13 +75,26 @@ PLIST="$APP/Contents/Info.plist"
 
 # ---------------------------------------------------------------------------
 # 6. Write project directory path into bundle
-#    The AppleScript reads this to locate dxo2photos.sh at runtime,
+#    The AppleScript reads this to locate dxo2photos.py at runtime,
 #    even when the app is run via a symlink from /Applications.
 # ---------------------------------------------------------------------------
 echo "$DIR" > "$APP/Contents/Resources/project_path.txt"
 
 # ---------------------------------------------------------------------------
-# 7. Install custom icon
+# 7. Write output directory into bundle (prompted, default: ~/Pictures/ExportedImages)
+# ---------------------------------------------------------------------------
+DEFAULT_OUTPUT="$HOME/Pictures/ExportedImages"
+if [[ -t 0 ]]; then
+    read -r -p "[build] Output directory [$DEFAULT_OUTPUT]: " user_output
+    OUTPUT_DIR="${user_output:-$DEFAULT_OUTPUT}"
+else
+    OUTPUT_DIR="$DEFAULT_OUTPUT"
+fi
+echo "$OUTPUT_DIR" > "$APP/Contents/Resources/output_dir.txt"
+echo "[build] Output directory: $OUTPUT_DIR"
+
+# ---------------------------------------------------------------------------
+# 8. Install custom icon
 # ---------------------------------------------------------------------------
 echo "[build] Installing icon ..."
 cp "$DIR/dxo2photos.icns" "$APP/Contents/Resources/dxo2photos.icns"
