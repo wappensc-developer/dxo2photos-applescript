@@ -60,12 +60,23 @@ echo "[build] Renaming binary ..."
 mv "$APP/Contents/MacOS/droplet" "$APP/Contents/MacOS/dxo2photos"
 echo "[build] Updating Info.plist ..."
 PLIST="$APP/Contents/Info.plist"
-/usr/libexec/PlistBuddy -c "Set :CFBundleExecutable dxo2photos" "$PLIST"
-/usr/libexec/PlistBuddy -c "Set :CFBundleIconFile   dxo2photos" "$PLIST"
-/usr/libexec/PlistBuddy -c "Set :CFBundleIconName   dxo2photos" "$PLIST"
+/usr/libexec/PlistBuddy -c "Set  :CFBundleExecutable          dxo2photos"                              "$PLIST"
+/usr/libexec/PlistBuddy -c "Set  :CFBundleIconFile             dxo2photos"                              "$PLIST"
+/usr/libexec/PlistBuddy -c "Set  :CFBundleIconName             dxo2photos"                              "$PLIST"
+/usr/libexec/PlistBuddy -c "Add  :CFBundleIdentifier    string de.wappensc.dxo2photos"                  "$PLIST"
+/usr/libexec/PlistBuddy -c "Set  :NSAppleEventsUsageDescription \
+    'dxo2photos needs to send Apple Events to Photos to import images.'"                                 "$PLIST"
 
 # ---------------------------------------------------------------------------
-# 5. Write output directory into bundle (prompted, default: ~/Pictures/ExportedImages)
+# 5. Sign the app so macOS can track Automation permission by bundle identifier.
+#    Without a bound Info.plist in the signature, the TCC permission dialog
+#    shows an "Edit" button (Script Editor) instead of "Allow / Don't Allow".
+# ---------------------------------------------------------------------------
+echo "[build] Signing app (ad-hoc) ..."
+codesign --force --deep --sign - "$APP"
+
+# ---------------------------------------------------------------------------
+# 6. Write output directory into bundle (prompted, default: ~/Pictures/ExportedImages)
 # ---------------------------------------------------------------------------
 DEFAULT_OUTPUT="$HOME/Pictures/ExportedImages"
 if [[ -t 0 ]]; then
