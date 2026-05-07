@@ -75,6 +75,17 @@ PLIST="$APP/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable dxo2photos" "$PLIST"
 /usr/libexec/PlistBuddy -c "Set :CFBundleIconFile   dxo2photos" "$PLIST"
 /usr/libexec/PlistBuddy -c "Set :CFBundleIconName   dxo2photos" "$PLIST"
+/usr/libexec/PlistBuddy -c "Add :CFBundleIdentifier string de.wappensc.dxo2photos" "$PLIST"
+/usr/libexec/PlistBuddy -c "Set :NSAppleEventsUsageDescription \
+    'dxo2photos needs to send Apple Events to Photos to import images.'" "$PLIST"
+
+# ---------------------------------------------------------------------------
+# 5a. Sign the app so macOS tracks Automation permission by bundle identifier.
+#     Without a bound Info.plist in the signature, the TCC dialog shows
+#     "Edit in Script Editor" instead of "Allow / Don't Allow".
+# ---------------------------------------------------------------------------
+echo "[build] Signing app (ad-hoc) ..."
+codesign --force --deep --sign - "$APP"
 
 # ---------------------------------------------------------------------------
 # 6. Write project directory path into bundle
