@@ -80,10 +80,20 @@ codesign --force --deep --sign - "$APP"
 # ---------------------------------------------------------------------------
 DEFAULT_OUTPUT="$HOME/Pictures/ExportedImages"
 if [[ -t 0 ]]; then
-    read -r -p "[build] Output directory [$DEFAULT_OUTPUT]: " user_output
-    OUTPUT_DIR="${user_output:-$DEFAULT_OUTPUT}"
+    while true; do
+        read -r -p "[build] Output directory [$DEFAULT_OUTPUT]: " user_output
+        OUTPUT_DIR="${user_output:-$DEFAULT_OUTPUT}"
+        if [[ -d "$OUTPUT_DIR" ]]; then
+            break
+        fi
+        echo "[build] Warning: '$OUTPUT_DIR' does not exist. Please enter an existing directory."
+    done
 else
     OUTPUT_DIR="$DEFAULT_OUTPUT"
+    if [[ ! -d "$OUTPUT_DIR" ]]; then
+        echo "[build] Warning: output directory '$OUTPUT_DIR' does not exist." >&2
+        echo "[build] Create it with: mkdir -p \"$OUTPUT_DIR\"" >&2
+    fi
 fi
 echo "$OUTPUT_DIR" > "$APP/Contents/Resources/output_dir.txt"
 echo "[build] Output directory: $OUTPUT_DIR"
