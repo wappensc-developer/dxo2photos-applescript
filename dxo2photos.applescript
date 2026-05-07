@@ -109,9 +109,9 @@ on replaceText(theText, searchStr, replaceStr)
     set AppleScript's text item delimiters to searchStr
     set parts to text items of theText
     set AppleScript's text item delimiters to replaceStr
-    set result to parts as text
+    set theResult to parts as text
     set AppleScript's text item delimiters to oldDelims
-    return result
+    return theResult
 end replaceText
 
 on buildTargetDir(srcPath, outputDir)
