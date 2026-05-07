@@ -10,10 +10,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rewrote `dxo2photos.applescript` as a self-contained droplet: all processing
   (EXIF keywords, file move, mtime, Photos import) is now done directly in
   AppleScript without calling Python or a shell script.
-- The droplet controls Apple Photos directly via Apple Events. This fixes
-  silent import failures when called from DxO PhotoLab, caused by macOS not
-  granting Automation permissions to child processes spawned by the previous
-  Python/`osascript` chain.
+- The droplet controls Apple Photos directly via Apple Events, eliminating
+  the Python runtime dependency at run time.
+- **Note on root cause:** Subsequent testing showed that the original Photos
+  import failure was caused by the missing `CFBundleIdentifier` and unbound
+  Info.plist in the code signature — not by the Python/`osascript` subprocess
+  chain itself. The same `codesign` fix was backported to v1.0.1 and resolved
+  the issue there as well. v2 is nevertheless the preferred architecture as it
+  removes the Python runtime dependency entirely.
 - `build_app.sh` now sets `CFBundleIdentifier` (`de.wappensc.dxo2photos`) and
   re-signs the bundle with `codesign` after plist edits. Without a bound
   Info.plist in the signature, macOS showed an "Edit in Script Editor" button

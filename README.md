@@ -67,9 +67,11 @@ If the dialog does not appear and imports are silently skipped, open System Sett
 
 ### Architecture
 
-`dxo2photos.app` is a compiled AppleScript droplet, signed ad-hoc with bundle identifier `de.wappensc.dxo2photos`. The droplet's process receives the files from DxO PhotoLab via the macOS `on open` handler and controls Apple Photos directly via Apple Events — without any intermediate process. This is necessary because macOS grants Automation permissions per process: child processes such as `osascript` spawned by a shell script cannot inherit the permission, causing Photos to silently reject the import.
+`dxo2photos.app` is a compiled AppleScript droplet, signed ad-hoc with bundle identifier `de.wappensc.dxo2photos`. The droplet's process receives the files from DxO PhotoLab via the macOS `on open` handler and controls Apple Photos directly via Apple Events.
 
 EXIF metadata operations (reading star ratings, writing keywords, setting modification dates) are performed via `exiftool` through `do shell script`.
+
+**Root cause of the original Photos import failure:** The problem was not the Python/`osascript` subprocess chain but a missing `CFBundleIdentifier` and an unbound Info.plist in the code signature. Without these, macOS could not track the Automation permission per app and showed "Edit in Script Editor" instead of the expected "Allow / Don't Allow" dialog. The same fix was backported to the Python-based architecture as [v1.0.1](https://github.com/wappensc/dxo2photos/tree/v1-bugfix). v2 remains the main version as it additionally removes the Python runtime dependency.
 
 ## Configuration
 

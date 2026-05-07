@@ -69,9 +69,18 @@ Images edited with DxO PhotoLab are to be efficiently imported into Apple Photos
 
 ### 4.2 Why pure AppleScript (no Python subprocess)
 
-macOS grants Automation permissions per process. In the previous v1 architecture, the droplet called Python via `do shell script`, and Python spawned `osascript` as a child process. macOS did not grant Photos Automation permission to this child process, causing the import to fail silently.
+The original Photos import failure was traced to a missing `CFBundleIdentifier`
+and an unbound Info.plist in the code signature. Without these, macOS cannot
+track the Automation permission per app and shows "Edit in Script Editor"
+instead of the expected "Allow / Don't Allow" dialog. Applying the `codesign`
+fix to the v1 Python-based architecture (released as v1.0.1) resolved the
+issue there as well.
 
-In v2, the droplet's own process sends Apple Events to Photos directly. macOS grants the Automation permission to the droplet (`de.wappensc.dxo2photos`) and stores it permanently. EXIF operations still use `exiftool` via `do shell script`, which does not require any special permission.
+v2 was nevertheless kept as the main version for a separate reason: eliminating
+the Python runtime dependency (`piexif`, `.venv`) simplifies installation and
+removes a class of environment-related failures. The pure-AppleScript droplet
+also requires only `exiftool` at runtime, making the tool easier to distribute
+and maintain.
 
 ### 4.3 Workflow (DxO PhotoLab integration)
 1. User selects images in DxO PhotoLab and triggers the external program.
