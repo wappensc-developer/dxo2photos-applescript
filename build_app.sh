@@ -65,8 +65,11 @@ rm -rf "$APP"
 osacompile -o "$APP" "$DIR/dxo2photos.applescript"
 
 # ---------------------------------------------------------------------------
-# 5. Update Info.plist (osacompile names the binary after the app)
+# 5. Rename binary and update Info.plist
+#    osacompile always names the binary "droplet" regardless of app name.
 # ---------------------------------------------------------------------------
+echo "[build] Renaming binary ..."
+mv "$APP/Contents/MacOS/droplet" "$APP/Contents/MacOS/dxo2photos"
 echo "[build] Updating Info.plist ..."
 PLIST="$APP/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable dxo2photos" "$PLIST"
