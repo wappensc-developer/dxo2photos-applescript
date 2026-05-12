@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026-05-12
+
+### Added
+- Progress window during image processing: shows current filename, counter
+  (`X von N`), and phase (`Verarbeite Bilder…` / `Importiere in Photos…`
+  with album name) using native macOS progress properties.
+- About dialog (shown on direct launch) now displays version number, author,
+  and GitHub repository URL.
+- Version is read at runtime from `CFBundleShortVersionString` in Info.plist.
+
+### Changed
+- `build_app.sh` sets `CFBundleShortVersionString` in Info.plist.
+- `build_app.sh` creates a project-local `.venv` and installs `requirements.txt`
+  so icon generation works reproducibly on a fresh checkout without a
+  pre-existing `dxo2photos.icns`.
+- Added `requirements.txt` declaring `Pillow>=9.0.0` as build-time dependency.
+
 ## [2.0.0] - 2026-05-07
 
 ### Changed
