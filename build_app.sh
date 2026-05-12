@@ -32,15 +32,19 @@ if ! command -v exiftool &>/dev/null; then
 fi
 
 # ---------------------------------------------------------------------------
-# 2. Generate app icon (requires Python + Pillow, skipped if .icns exists)
+# 2. Set up Python venv and generate app icon (skipped if .icns exists)
 # ---------------------------------------------------------------------------
+VENV="$DIR/.venv"
+if [[ ! -d "$VENV" ]]; then
+    echo "[build] Creating Python venv ..."
+    python3 -m venv "$VENV"
+fi
+echo "[build] Installing Python dependencies ..."
+"$VENV/bin/pip" install --quiet -r "$DIR/requirements.txt"
+
 if [[ ! -f "$DIR/dxo2photos.icns" ]]; then
-    if command -v python3 &>/dev/null; then
-        echo "[build] Generating icon ..."
-        python3 "$DIR/create_icon.py"
-    else
-        echo "[build] Warning: dxo2photos.icns missing and python3 not found — icon skipped." >&2
-    fi
+    echo "[build] Generating icon ..."
+    "$VENV/bin/python3" "$DIR/create_icon.py"
 else
     echo "[build] Icon already exists, skipping generation."
 fi
@@ -64,6 +68,8 @@ PLIST="$APP/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set  :CFBundleIconFile             dxo2photos"                              "$PLIST"
 /usr/libexec/PlistBuddy -c "Set  :CFBundleIconName             dxo2photos"                              "$PLIST"
 /usr/libexec/PlistBuddy -c "Add  :CFBundleIdentifier    string de.wappensc.dxo2photos"                  "$PLIST"
+/usr/libexec/PlistBuddy -c "Set  :CFBundleShortVersionString 2.0.0" "$PLIST" 2>/dev/null || \
+/usr/libexec/PlistBuddy -c "Add  :CFBundleShortVersionString string 2.0.0" "$PLIST"
 /usr/libexec/PlistBuddy -c "Set  :NSAppleEventsUsageDescription \
     'dxo2photos needs to send Apple Events to Photos to import images.'"                                 "$PLIST"
 

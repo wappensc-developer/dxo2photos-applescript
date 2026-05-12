@@ -31,6 +31,15 @@ on getOutputDir()
     return d
 end getOutputDir
 
+on getAppVersion()
+    try
+        set plistPath to POSIX path of (path to me) & "Contents/Info.plist"
+        return do shell script "/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' " & quoted form of plistPath
+    on error
+        return ""
+    end try
+end getAppVersion
+
 -- ── Tool discovery ────────────────────────────────────────────────────────────
 
 on findExiftool()
@@ -174,8 +183,19 @@ on open droppedFiles
     set targetDirs to {}      -- unique target directories
     set errors to {}
 
+    set totalFiles to count of droppedFiles
+    set progress total steps to totalFiles + 1  -- +1 for the Photos import step
+    set progress completed steps to 0
+    set progress description to "Verarbeite Bilder…"
+    set progress additional description to "0 von " & totalFiles
+
+    set fileIndex to 0
     repeat with aFile in droppedFiles
+        set fileIndex to fileIndex + 1
         set srcPath to POSIX path of aFile
+        set srcName to fileNameOf(srcPath)
+
+        set progress additional description to srcName & " (" & fileIndex & " von " & totalFiles & ")"
 
         -- 1. EXIF keyword
         set rating to getExifRating(srcPath, exiftool)
@@ -186,7 +206,6 @@ on open droppedFiles
 
         -- 3. Build target path
         set targetDir to buildTargetDir(srcPath, outputDir)
-        set srcName to fileNameOf(srcPath)
         set targetName to replaceText(srcName, "_openWith", "")
         set targetPath to targetDir & targetName
 
@@ -206,6 +225,8 @@ on open droppedFiles
         on error errMsg
             set end of errors to srcName & ": " & errMsg
         end try
+
+        set progress completed steps to fileIndex
     end repeat
 
     -- 4. Import into Photos
@@ -222,8 +243,15 @@ on open droppedFiles
             set importDirTrimmed to text 1 thru -2 of importDirTrimmed
         end if
         set albumName to item -1 of pathParts(importDirTrimmed)
+
+        set progress description to "Importiere in Photos…"
+        set progress additional description to "Album: " & albumName
         importToPhotos(albumName, processedFiles)
+        set progress completed steps to totalFiles + 1
     end if
+
+    set progress description to ""
+    set progress additional description to ""
 
     -- 5. Report errors
     if (count of errors) > 0 then
@@ -238,9 +266,17 @@ end open
 
 on run
     set outDir to getOutputDir()
-    display dialog "dxo2photos v2" & return & return & ¬
+    set appVersion to getAppVersion()
+    if appVersion is not "" then
+        set titleLine to "dxo2photos v" & appVersion
+    else
+        set titleLine to "dxo2photos"
+    end if
+    display dialog titleLine & return & return & ¬
         "Output directory: " & outDir & return & return & ¬
         "Drop images exported from DxO PhotoLab onto this app," & return & ¬
-        "or register it as an External Program in DxO PhotoLab." ¬
+        "or register it as an External Program in DxO PhotoLab." & return & return & ¬
+        "Author: wappensc" & return & ¬
+        "https://github.com/wappensc/dxo2photos" ¬
         buttons {"OK"} default button "OK"
 end run
