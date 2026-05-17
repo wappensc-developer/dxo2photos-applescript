@@ -68,10 +68,12 @@ PLIST="$APP/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set  :CFBundleIconFile             dxo2photos"                              "$PLIST"
 /usr/libexec/PlistBuddy -c "Set  :CFBundleIconName             dxo2photos"                              "$PLIST"
 /usr/libexec/PlistBuddy -c "Add  :CFBundleIdentifier    string de.wappensc.dxo2photos"                  "$PLIST"
-/usr/libexec/PlistBuddy -c "Set  :CFBundleShortVersionString 2.1.0" "$PLIST" 2>/dev/null || \
-/usr/libexec/PlistBuddy -c "Add  :CFBundleShortVersionString string 2.1.0" "$PLIST"
+/usr/libexec/PlistBuddy -c "Set  :CFBundleShortVersionString 2.2.0" "$PLIST" 2>/dev/null || \
+/usr/libexec/PlistBuddy -c "Add  :CFBundleShortVersionString string 2.2.0" "$PLIST"
 /usr/libexec/PlistBuddy -c "Set  :NSAppleEventsUsageDescription \
-    'dxo2photos needs to send Apple Events to Photos to import images.'"                                 "$PLIST"
+    'dxo2photos needs to send Apple Events to Photos to import images.'" "$PLIST" 2>/dev/null || \
+/usr/libexec/PlistBuddy -c "Add  :NSAppleEventsUsageDescription string \
+    'dxo2photos needs to send Apple Events to Photos to import images.'" "$PLIST"
 
 # ---------------------------------------------------------------------------
 # 5. Sign the app so macOS can track Automation permission by bundle identifier.
@@ -101,11 +103,11 @@ else
         echo "[build] Create it with: mkdir -p \"$OUTPUT_DIR\"" >&2
     fi
 fi
-echo "$OUTPUT_DIR" > "$APP/Contents/Resources/output_dir.txt"
+defaults write "$APP/Contents/Resources/config" outputDirectory "$OUTPUT_DIR"
 echo "[build] Output directory: $OUTPUT_DIR"
 
 # ---------------------------------------------------------------------------
-# 6. Install custom icon
+# 7. Install custom icon
 # ---------------------------------------------------------------------------
 echo "[build] Installing icon ..."
 cp "$DIR/dxo2photos.icns" "$APP/Contents/Resources/dxo2photos.icns"

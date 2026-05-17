@@ -4,6 +4,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2026-05-17
+
+### Added
+- Success notification via macOS Notification Center after a clean import
+  (sound: Glass; shows file count and album name).
+- "Change output directory…" button in the About/run dialog: opens a folder
+  chooser and stores the chosen path per-user in
+  `~/Library/Application Support/de.wappensc.dxo2photos/config.plist`.
+
+### Changed
+- EXIF read operations consolidated: `Rating` and `DateTimeOriginal` are now
+  fetched in a single `exiftool -p` call instead of two separate processes,
+  reducing exiftool invocations per file from 3 to 2.
+- `_openWith` is now stripped only from the filename stem (before the extension)
+  rather than being replaced globally, preventing incorrect renames for unlikely
+  but possible filenames that contain `_openWith` mid-stem.
+- `setExifKeyword` errors are now reported in the end-of-run error dialog
+  instead of being silently logged.
+- Output directory is now stored per-user in
+  `~/Library/Application Support/de.wappensc.dxo2photos/config.plist`
+  (via `defaults write`) instead of inside the app bundle, enabling
+  system-wide installation without admin rights for configuration changes.
+  The bundle retains a `config.plist` as system-wide default set at build time.
+- About dialog switched from `display dialog` to `display alert` to show the
+  app icon without a two-column layout.
+
+### Fixed
+- `build_app.sh`: `NSAppleEventsUsageDescription` now uses `Set`-with-`Add`
+  fallback (matching the existing pattern for `CFBundleShortVersionString`) so
+  a fresh `osacompile` output no longer aborts the build under `set -euo pipefail`.
+- `build_app.sh`: duplicate step label "6." corrected; icon installation is
+  now labelled "7.".
+
 ## [2.1.0] - 2026-05-12
 
 ### Added

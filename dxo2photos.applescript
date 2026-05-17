@@ -23,12 +23,25 @@ on readResourceFile(fileName)
     end try
 end readResourceFile
 
+on userConfigBase()
+    return (POSIX path of (path to application support folder from user domain)) & ¬
+        "de.wappensc.dxo2photos/config"
+end userConfigBase
+
+on bundleConfigBase()
+    return bundleResourcePath("config")
+end bundleConfigBase
+
 on getOutputDir()
-    set d to readResourceFile("output_dir.txt")
-    if d is "" then
-        return POSIX path of (path to pictures folder) & "ExportedImages"
-    end if
-    return d
+    try
+        set d to do shell script "defaults read " & quoted form of userConfigBase() & " outputDirectory"
+        if d is not "" then return d
+    end try
+    try
+        set d to do shell script "defaults read " & quoted form of bundleConfigBase() & " outputDirectory"
+        if d is not "" then return d
+    end try
+    return POSIX path of (path to pictures folder) & "ExportedImages"
 end getOutputDir
 
 on getAppVersion()
@@ -54,34 +67,44 @@ end findExiftool
 
 -- ── EXIF operations ───────────────────────────────────────────────────────────
 
-on getExifRating(filePath, exiftool)
+on getExifMetadata(filePath, exiftool)
+    -- Single exiftool call returning {rating: integer, datetime: string}.
+    -- datetime format: "YYYY:MM:DD HH:MM:SS" or ""
     try
-        set r to do shell script exiftool & " -Rating -b " & quoted form of filePath
-        if r is "" then return 0
-        return r as integer
+        set raw to do shell script exiftool & " -p '$Rating|$DateTimeOriginal' " & quoted form of filePath
+        set oldDelims to AppleScript's text item delimiters
+        set AppleScript's text item delimiters to "|"
+        set parts to text items of raw
+        set AppleScript's text item delimiters to oldDelims
+        set ratingStr to item 1 of parts
+        if (count of parts) ≥ 2 then
+            set dtStr to item 2 of parts
+        else
+            set dtStr to ""
+        end if
+        set ratingVal to 0
+        if ratingStr is not "" then
+            try
+                set ratingVal to ratingStr as integer
+            end try
+        end if
+        return {rating:ratingVal, datetime:dtStr}
     on error
-        return 0
+        return {rating:0, datetime:""}
     end try
-end getExifRating
-
-on getExifDatetime(filePath, exiftool)
-    -- Returns "YYYY:MM:DD HH:MM:SS" or ""
-    try
-        return do shell script exiftool & " -DateTimeOriginal -b " & quoted form of filePath
-    on error
-        return ""
-    end try
-end getExifDatetime
+end getExifMetadata
 
 on setExifKeyword(filePath, keyword, exiftool)
-    -- Removes then adds the keyword to guarantee exactly one occurrence.
+    -- Removes then adds keyword to guarantee exactly one occurrence.
+    -- Returns "" on success, error message on failure.
     try
         do shell script exiftool & " -overwrite_original " & ¬
             quoted form of ("-Keywords-=" & keyword) & " " & ¬
             quoted form of ("-Keywords+=" & keyword) & " " & ¬
             quoted form of filePath
+        return ""
     on error errMsg
-        log "setExifKeyword error for " & filePath & ": " & errMsg
+        return errMsg
     end try
 end setExifKeyword
 
@@ -122,6 +145,28 @@ on replaceText(theText, searchStr, replaceStr)
     set AppleScript's text item delimiters to oldDelims
     return theResult
 end replaceText
+
+on stripOpenWithSuffix(fileName)
+    -- Removes _openWith only from the stem (before the extension), not mid-filename.
+    set dotPos to 0
+    repeat with i from (count fileName) to 1 by -1
+        if character i of fileName is "." then
+            set dotPos to i
+            exit repeat
+        end if
+    end repeat
+    if dotPos > 1 then
+        set stem to text 1 thru (dotPos - 1) of fileName
+        set ext to text dotPos thru -1 of fileName
+    else
+        set stem to fileName
+        set ext to ""
+    end if
+    if stem ends with "_openWith" then
+        set stem to text 1 thru -((length of "_openWith") + 1) of stem
+    end if
+    return stem & ext
+end stripOpenWithSuffix
 
 on buildTargetDir(srcPath, outputDir)
     -- Mirrors the Python logic: outputDir/<grandparent>/<parent>/
@@ -197,16 +242,20 @@ on open droppedFiles
 
         set progress additional description to srcName & " (" & fileIndex & " von " & totalFiles & ")"
 
-        -- 1. EXIF keyword
-        set rating to getExifRating(srcPath, exiftool)
-        setExifKeyword(srcPath, (rating as text) & "*", exiftool)
+        -- 1. Read EXIF rating and date in a single exiftool call
+        set meta to getExifMetadata(srcPath, exiftool)
+        set rating to rating of meta
+        set exifDate to datetime of meta
 
-        -- 2. Read EXIF date before moving
-        set exifDate to getExifDatetime(srcPath, exiftool)
+        -- 2. Write IPTC keyword
+        set kwErr to setExifKeyword(srcPath, (rating as text) & "*", exiftool)
+        if kwErr is not "" then
+            set end of errors to srcName & " (keyword): " & kwErr
+        end if
 
         -- 3. Build target path
         set targetDir to buildTargetDir(srcPath, outputDir)
-        set targetName to replaceText(srcName, "_openWith", "")
+        set targetName to stripOpenWithSuffix(srcName)
         set targetPath to targetDir & targetName
 
         try
@@ -230,6 +279,7 @@ on open droppedFiles
     end repeat
 
     -- 4. Import into Photos
+    set albumName to ""
     if (count of processedFiles) > 0 then
         -- Mirror Python: 1 unique dir → import it; multiple → import parent of first
         if (count of targetDirs) is 1 then
@@ -253,7 +303,13 @@ on open droppedFiles
     set progress description to ""
     set progress additional description to ""
 
-    -- 5. Report errors
+    -- 5. Success notification (only when all files imported without errors)
+    if (count of processedFiles) > 0 and (count of errors) is 0 then
+        display notification ((count of processedFiles as text) & " images → album " & quote & albumName & quote) ¬
+            with title "dxo2photos" sound name "Glass"
+    end if
+
+    -- 6. Report errors
     if (count of errors) > 0 then
         set errText to ""
         repeat with msg in errors
@@ -272,11 +328,19 @@ on run
     else
         set titleLine to "dxo2photos"
     end if
-    display dialog titleLine & return & return & ¬
-        "Output directory: " & outDir & return & return & ¬
-        "Drop images exported from DxO PhotoLab onto this app," & return & ¬
-        "or register it as an External Program in DxO PhotoLab." & return & return & ¬
-        "Author: wappensc" & return & ¬
-        "https://github.com/wappensc/dxo2photos" ¬
-        buttons {"OK"} default button "OK"
+    set answer to button returned of (display alert titleLine ¬
+        message "Author: wappensc" & return & ¬
+            "https://github.com/wappensc" & return & return & ¬
+            "Drop DxO PhotoLab exports here," & return & ¬
+            "or add as External Program in DxO." & return & return & ¬
+            "Output directory:" & return & outDir ¬
+        buttons {"OK", "Change output directory…"} default button "OK")
+    if answer is "Change output directory…" then
+        set chosen to POSIX path of (choose folder with prompt "Select output directory for dxo2photos:")
+        if chosen ends with "/" then set chosen to text 1 thru -2 of chosen
+        set cfgDir to (POSIX path of (path to application support folder from user domain)) & "de.wappensc.dxo2photos/"
+        do shell script "mkdir -p " & quoted form of cfgDir
+        do shell script "defaults write " & quoted form of userConfigBase() & " outputDirectory " & quoted form of chosen
+        display dialog "Output directory set to:" & return & chosen buttons {"OK"} default button "OK"
+    end if
 end run
