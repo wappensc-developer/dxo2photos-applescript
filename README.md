@@ -75,13 +75,59 @@ EXIF metadata operations (reading star ratings, writing keywords, setting modifi
 
 ## Configuration
 
-The output directory is set once during `bash build_app.sh` and stored inside the app bundle (`Contents/Resources/output_dir.txt`). To change it, run `bash build_app.sh` again.
+Double-click `dxo2photos.app` to open the About dialog. It shows the current settings and offers two buttons:
+
+- **Change output directory…** sets the target root directory. The default is set during `bash build_app.sh`.
+- **Star ratings…** sets how DxO star ratings are handled:
+
+| Mode | Star rating in file | Keyword `0*`–`5*` |
+|---|---|---|
+| Keep star rating and add keyword (default) | kept | written |
+| Keep star rating only | kept | not written |
+| Keyword only | removed | written |
+
+Settings are stored per user in `~/Library/Application Support/de.wappensc.dxo2photos/config.plist` and can also be set from the command line:
+
+```
+defaults write ~/Library/Application\ Support/de.wappensc.dxo2photos/config keepStarRating -bool true
+defaults write ~/Library/Application\ Support/de.wappensc.dxo2photos/config writeRatingKeyword -bool false
+```
+
+If both are set to `false`, the star rating is kept, so a rating is never lost.
+
+**Note on Apple Photos (macOS 27):** Photos shows star ratings again, but its AppleScript interface offers no rating property (checked on macOS 27.0.1), so dxo2photos cannot set ratings in Photos directly. Whether Photos takes the rating from the file's metadata on import has not been verified. The keyword is the reliable way to carry ratings into Photos (e.g. for smart albums).
+
+## Checking existing images
+
+`dxo2photos_ratings.sh` checks image files for a star rating and a star keyword, and can derive one from the other:
+
+```
+./dxo2photos_ratings.sh -r ~/Pictures/ExportedImages            # check only
+./dxo2photos_ratings.sh -r --modify ~/Pictures/ExportedImages   # add missing values
+./dxo2photos_ratings.sh -r --modify --delete image.jpg folder/  # convert: keep only the new value
+./dxo2photos_ratings.sh -r --modify --keep stars folder/         # star rating only in every file
+./dxo2photos_ratings.sh -r --modify --keep keyword folder/       # keyword only in every file
+```
+
+`--delete` leaves `OK` files (rating and keyword both present) unchanged. `--keep stars` or `--keep keyword` ends with only that value in every file: it is written where missing, and the other value is deleted, also in `OK` files. `--keep` cannot be combined with `--delete`.
+
+| Status | Meaning | With `--modify` |
+|---|---|---|
+| `OK` | star rating and keyword present and equal | unchanged |
+| `STARS` | star rating only | keyword added (`--delete`: rating removed) |
+| `KEYWORD` | star keyword only | star rating added (`--delete`: keyword removed) |
+| `NONE` | neither | unchanged |
+| `CONFLICT` | rating and keyword differ, several star keywords, or XMP and EXIF ratings differ | unchanged, reported as error |
+| `INVALID` | rating outside 0–5 (e.g. `-1` = rejected) | unchanged, reported as error |
+
+Directories are scanned for JPEG, TIFF and DNG files; `-r` includes subdirectories. Hidden files and Photos libraries (`*.photoslibrary`) are skipped. Modification dates are preserved; `--backup` keeps each original as `FILE_original`. Run `./dxo2photos_ratings.sh --help` for all options.
 
 ## Features
 
-- Reads EXIF star ratings from DxO images (0–5 stars)
-- Converts ratings to IPTC keywords (e.g. 5 stars → `5*`, unrated → `0*`)
-- Preserves the original star rating in the EXIF data
+- Reads star ratings from DxO images (0–5 stars; XMP rating preferred over EXIF)
+- Converts ratings to IPTC keywords (e.g. 5 stars → `5*`, unrated → `0*`), replacing any outdated star keyword
+- Keeps the original star rating in the file (configurable)
+- Checks and syncs star ratings and keywords of existing images (`dxo2photos_ratings.sh`)
 - Moves images into a configurable folder structure
 - Preserves the relative subdirectory structure of the source directory
 - Removes `_openWith` from filenames (e.g. `image_openWith.jpg` → `image.jpg`)

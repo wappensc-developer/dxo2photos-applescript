@@ -32,17 +32,78 @@ on bundleConfigBase()
     return bundleResourcePath("config")
 end bundleConfigBase
 
+-- ── Configuration ─────────────────────────────────────────────────────────────
+
+on readConfig(keyName)
+    -- Per-user setting first, then the default stored in the bundle at build time.
+    -- Returns "" if the key is set in neither.
+    repeat with base in {userConfigBase(), bundleConfigBase()}
+        try
+            set v to do shell script "defaults read " & quoted form of (contents of base) & " " & keyName
+            if v is not "" then return v
+        end try
+    end repeat
+    return ""
+end readConfig
+
+on readBoolConfig(keyName, defaultValue)
+    set v to readConfig(keyName)
+    if {"1", "true", "yes"} contains v then return true
+    if {"0", "false", "no"} contains v then return false
+    return defaultValue
+end readBoolConfig
+
+on writeConfig(keyName, typeFlag, theValue)
+    -- typeFlag: "-string" or "-bool"
+    do shell script "mkdir -p " & quoted form of parentDirOf(userConfigBase())
+    do shell script "defaults write " & quoted form of userConfigBase() & " " & keyName & ¬
+        " " & typeFlag & " " & quoted form of (theValue as text)
+end writeConfig
+
 on getOutputDir()
-    try
-        set d to do shell script "defaults read " & quoted form of userConfigBase() & " outputDirectory"
-        if d is not "" then return d
-    end try
-    try
-        set d to do shell script "defaults read " & quoted form of bundleConfigBase() & " outputDirectory"
-        if d is not "" then return d
-    end try
+    set d to readConfig("outputDirectory")
+    if d is not "" then return d
     return POSIX path of (path to pictures folder) & "ExportedImages"
 end getOutputDir
+
+on getRatingSettings()
+    -- keepRating:   leave the DxO star rating in the file (default: true)
+    -- writeKeyword: add the star keyword "0*"…"5*" (default: true)
+    set keepRating to readBoolConfig("keepStarRating", true)
+    set writeKeyword to readBoolConfig("writeRatingKeyword", true)
+    -- Never remove a rating without writing the keyword instead.
+    if not keepRating and not writeKeyword then set keepRating to true
+    return {keepRating:keepRating, writeKeyword:writeKeyword}
+end getRatingSettings
+
+on ratingModeLabels()
+    -- Order matches ratingModeIndex.
+    return {"Keep star rating and add keyword (e.g. 4*)", ¬
+        "Keep star rating only", ¬
+        "Keyword only (remove star rating)"}
+end ratingModeLabels
+
+on ratingModeIndex(settings)
+    if (keepRating of settings) and (writeKeyword of settings) then return 1
+    if keepRating of settings then return 2
+    return 3
+end ratingModeIndex
+
+on chooseRatingMode()
+    set labels to ratingModeLabels()
+    set currentLabel to item (ratingModeIndex(getRatingSettings())) of labels
+    set picked to choose from list labels with title "dxo2photos" ¬
+        with prompt "How should star ratings from DxO PhotoLab be handled?" ¬
+        default items {currentLabel} OK button name "Save" cancel button name "Cancel"
+    if picked is false then return
+    set idx to 1
+    repeat with i from 1 to count of labels
+        if item i of labels is item 1 of picked then set idx to i
+    end repeat
+    writeConfig("keepStarRating", "-bool", (idx ≤ 2))
+    writeConfig("writeRatingKeyword", "-bool", (idx ≠ 2))
+    display dialog "Star ratings:" & return & (item idx of labels) buttons {"OK"} default button "OK"
+end chooseRatingMode
 
 on getAppVersion()
     try
@@ -67,55 +128,85 @@ end findExiftool
 
 -- ── EXIF operations ───────────────────────────────────────────────────────────
 
+on starKeywords()
+    return {"0*", "1*", "2*", "3*", "4*", "5*"}
+end starKeywords
+
 on getExifMetadata(filePath, exiftool)
-    -- Single exiftool call returning {rating: integer, datetime: string}.
-    -- datetime format: "YYYY:MM:DD HH:MM:SS" or ""
+    -- Single exiftool call returning {rating: text, datetime: text}.
+    -- rating:   star rating as text ("" = no rating); XMP preferred over EXIF
+    -- datetime: "YYYY:MM:DD HH:MM:SS" or ""
+    -- -m makes missing tags empty; without it exiftool drops the whole line
+    -- when one tag is missing (e.g. no rating), losing the capture date too.
     try
-        set raw to do shell script exiftool & " -p '$Rating|$DateTimeOriginal' " & quoted form of filePath
-        set oldDelims to AppleScript's text item delimiters
-        set AppleScript's text item delimiters to "|"
-        set parts to text items of raw
-        set AppleScript's text item delimiters to oldDelims
+        set raw to do shell script exiftool & ¬
+            " -m -p '${XMP-xmp:Rating}|${IFD0:Rating}|${DateTimeOriginal}' " & quoted form of filePath
+        set parts to splitText(raw, "|")
+        if (count of parts) < 3 then return {rating:"", datetime:""}
         set ratingStr to item 1 of parts
-        if (count of parts) ≥ 2 then
-            set dtStr to item 2 of parts
-        else
-            set dtStr to ""
-        end if
-        set ratingVal to 0
-        if ratingStr is not "" then
-            try
-                set ratingVal to ratingStr as integer
-            end try
-        end if
-        return {rating:ratingVal, datetime:dtStr}
+        if ratingStr is "" then set ratingStr to item 2 of parts
+        return {rating:ratingStr, datetime:item 3 of parts}
     on error
-        return {rating:0, datetime:""}
+        return {rating:"", datetime:""}
     end try
 end getExifMetadata
 
-on setExifKeyword(filePath, keyword, exiftool)
-    -- Removes then adds keyword to guarantee exactly one occurrence.
+on writeRatingMetadata(filePath, keyword, removeRating, exiftool)
+    -- keyword:      star keyword to set, e.g. "4*" ("" = leave keywords alone).
+    --               Other star keywords are removed first, so exactly one remains.
+    -- removeRating: also delete the star rating (XMP and EXIF), in the same call.
     -- Returns "" on success, error message on failure.
+    set args to ""
+    if keyword is not "" then
+        repeat with k in starKeywords()
+            set args to args & " " & quoted form of ("-IPTC:Keywords-=" & (contents of k))
+        end repeat
+        set args to args & " " & quoted form of ("-IPTC:Keywords+=" & keyword)
+    end if
+    if removeRating then
+        set args to args & " -XMP-xmp:Rating= -IFD0:Rating= -IFD0:RatingPercent= -XMP-microsoft:RatingPercent="
+    end if
+    if args is "" then return ""
     try
-        do shell script exiftool & " -overwrite_original " & ¬
-            quoted form of ("-Keywords-=" & keyword) & " " & ¬
-            quoted form of ("-Keywords+=" & keyword) & " " & ¬
-            quoted form of filePath
+        do shell script exiftool & " -q -overwrite_original" & args & " " & quoted form of filePath
         return ""
     on error errMsg
         return errMsg
     end try
-end setExifKeyword
+end writeRatingMetadata
+
+on applyRatingSettings(filePath, ratingText, keepRating, writeKeyword, exiftool)
+    -- ratingText: star rating read from the file ("" = unrated → keyword "0*").
+    -- Returns "" on success, otherwise an error text for the end-of-run dialog.
+    if ratingText is not "" and not ({"0", "1", "2", "3", "4", "5"} contains ratingText) then
+        return "(rating): unsupported value " & ratingText & ", metadata left unchanged"
+    end if
+    set keyword to ""
+    if writeKeyword then
+        if ratingText is "" then
+            set keyword to "0*"
+        else
+            set keyword to ratingText & "*"
+        end if
+    end if
+    set removeRating to (not keepRating) and ratingText is not "" and keyword is not ""
+    set errMsg to writeRatingMetadata(filePath, keyword, removeRating, exiftool)
+    if errMsg is not "" then return "(metadata): " & errMsg
+    return ""
+end applyRatingSettings
 
 -- ── Path helpers ──────────────────────────────────────────────────────────────
 
-on pathParts(posixPath)
+on splitText(theText, delim)
     set oldDelims to AppleScript's text item delimiters
-    set AppleScript's text item delimiters to "/"
-    set parts to text items of posixPath
+    set AppleScript's text item delimiters to delim
+    set parts to text items of theText
     set AppleScript's text item delimiters to oldDelims
     return parts
+end splitText
+
+on pathParts(posixPath)
+    return splitText(posixPath, "/")
 end pathParts
 
 on joinParts(partsList, delim)
@@ -223,6 +314,9 @@ end importToPhotos
 on open droppedFiles
     set exiftool to findExiftool()
     set outputDir to getOutputDir()
+    set ratingSettings to getRatingSettings()
+    set keepRating to keepRating of ratingSettings
+    set writeKeyword to writeKeyword of ratingSettings
 
     set processedFiles to {}  -- POSIX path strings
     set targetDirs to {}      -- unique target directories
@@ -244,13 +338,13 @@ on open droppedFiles
 
         -- 1. Read EXIF rating and date in a single exiftool call
         set meta to getExifMetadata(srcPath, exiftool)
-        set rating to rating of meta
+        set ratingText to rating of meta
         set exifDate to datetime of meta
 
-        -- 2. Write IPTC keyword
-        set kwErr to setExifKeyword(srcPath, (rating as text) & "*", exiftool)
-        if kwErr is not "" then
-            set end of errors to srcName & " (keyword): " & kwErr
+        -- 2. Star rating → keyword and/or removal, as configured
+        set metaErr to applyRatingSettings(srcPath, ratingText, keepRating, writeKeyword, exiftool)
+        if metaErr is not "" then
+            set end of errors to srcName & " " & metaErr
         end if
 
         -- 3. Build target path
@@ -328,19 +422,21 @@ on run
     else
         set titleLine to "dxo2photos"
     end if
+    set ratingLabel to item (ratingModeIndex(getRatingSettings())) of ratingModeLabels()
     set answer to button returned of (display alert titleLine ¬
         message "Author: wappensc" & return & ¬
             "https://github.com/wappensc" & return & return & ¬
             "Drop DxO PhotoLab exports here," & return & ¬
             "or add as External Program in DxO." & return & return & ¬
-            "Output directory:" & return & outDir ¬
-        buttons {"OK", "Change output directory…"} default button "OK")
+            "Output directory:" & return & outDir & return & return & ¬
+            "Star ratings:" & return & ratingLabel ¬
+        buttons {"Change output directory…", "Star ratings…", "OK"} default button "OK")
     if answer is "Change output directory…" then
         set chosen to POSIX path of (choose folder with prompt "Select output directory for dxo2photos:")
         if chosen ends with "/" then set chosen to text 1 thru -2 of chosen
-        set cfgDir to (POSIX path of (path to application support folder from user domain)) & "de.wappensc.dxo2photos/"
-        do shell script "mkdir -p " & quoted form of cfgDir
-        do shell script "defaults write " & quoted form of userConfigBase() & " outputDirectory " & quoted form of chosen
+        writeConfig("outputDirectory", "-string", chosen)
         display dialog "Output directory set to:" & return & chosen buttons {"OK"} default button "OK"
+    else if answer is "Star ratings…" then
+        chooseRatingMode()
     end if
 end run

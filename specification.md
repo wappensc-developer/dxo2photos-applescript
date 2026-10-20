@@ -17,8 +17,9 @@ Images edited with DxO PhotoLab are to be efficiently imported into Apple Photos
 - The images contain EXIF metadata with star ratings.
 
 ### 2.2 Processing
-- **Reading star ratings:** Read the star ratings from the EXIF data of the images (EXIF tag 18246) via `exiftool`.
-- **Converting to IPTC keywords:** Convert the star ratings into IPTC keywords in the format "0*", "1*", "2*", "3*", "4*", "5*" (e.g. 5 stars → "5*", no rating → "0*"). The original star rating in the EXIF data is preserved. The keyword is removed and re-added to guarantee exactly one occurrence.
+- **Reading star ratings:** Read the star rating via `exiftool` from `XMP-xmp:Rating`, falling back to EXIF `IFD0:Rating` (tag 18246). Values other than 0–5 (e.g. -1 = rejected) are reported as errors and leave the metadata unchanged.
+- **Converting to IPTC keywords** (configurable, default on): Convert the star rating into an IPTC keyword in the format "0*", "1*", "2*", "3*", "4*", "5*" (e.g. 5 stars → "5*", no rating → "0*"). All other star keywords are removed first, so exactly one star keyword remains.
+- **Keeping star ratings** (configurable, default on): The original star rating stays in the file. If switched off, the rating tags (`XMP-xmp:Rating`, `IFD0:Rating`, `IFD0:RatingPercent`, `XMP-microsoft:RatingPercent`) are deleted in the same exiftool call that writes the keyword.
 - **Moving images:** Move the processed images into a defined folder structure. The target root directory is configured during `build_app.sh` (default: `~/Pictures/ExportedImages`) and stored inside the app bundle. The relative subdirectory structure of the original file (grandparent/parent) is preserved below the target root.
 - **Filename adjustment:** Remove the suffix `_openWith` from filenames (e.g. `imagename_openWith.jpg` → `imagename.jpg`).
 - **Modification date:** Set the modification date (`mtime`) of the target files to the original capture date from the EXIF field `DateTimeOriginal`, via `touch -t`.
@@ -33,6 +34,27 @@ Images edited with DxO PhotoLab are to be efficiently imported into Apple Photos
 - Import the moved images into Apple Photos directly via Apple Events (no subprocess).
 - The app creates an album in Photos named after the target directory (if it does not already exist) and imports all image files into it. Duplicate images already present in the library are not imported again.
 - If processed files land in multiple target directories, the common parent directory is imported.
+- Photos' AppleScript interface has no rating property (checked on macOS 27.0.1); star ratings reach Photos only through the file metadata or the keyword.
+
+### 2.4 Configuration
+Settings are stored per user via `defaults` in `~/Library/Application Support/de.wappensc.dxo2photos/config.plist`, with a fallback to `Contents/Resources/config.plist` in the bundle (written by `build_app.sh`).
+
+| Key | Type | Default | Meaning |
+|---|---|---|---|
+| `outputDirectory` | string | `~/Pictures/ExportedImages` | Target root directory |
+| `keepStarRating` | bool | `true` | Keep the star rating in the file |
+| `writeRatingKeyword` | bool | `true` | Write the star keyword `0*`–`5*` |
+
+If both booleans are `false`, `keepStarRating` is treated as `true` so a rating is never lost. The About dialog offers the three valid combinations.
+
+### 2.5 Checking existing images (`dxo2photos_ratings.sh`)
+- **Input:** image files and/or directories (JPEG, TIFF, DNG; `-r` for subdirectories). Hidden files and `*.photoslibrary` bundles are skipped; `--modify` refuses paths inside a Photos library.
+- **Check:** for each file, report the status `OK` (rating and keyword equal), `STARS` (rating only), `KEYWORD` (keyword only), `NONE`, `CONFLICT` (rating and keyword differ, several star keywords, or XMP and EXIF ratings differ), `INVALID` (rating outside 0–5) or `ERROR`.
+- **`--modify`:** `STARS` → write the keyword; `KEYWORD` → write the star rating (`XMP-xmp:Rating` and `IFD0:Rating`). `CONFLICT` and `INVALID` files are never modified.
+- **`--delete`** (only with `--modify`): after writing, delete the original value (rating tags or star keyword). Files with status `OK` stay unchanged.
+- **`--keep stars|keyword`** (only with `--modify`, not with `--delete`): every file ends with only the given value. It is written where missing (then the other value is deleted); `OK` files lose the other value; files that already have only the given value stay unchanged.
+- Every modified file is re-read to confirm the new status. File modification dates are preserved (`-P`), files are rewritten in place; `--backup` keeps `FILE_original`.
+- Exit status: 0 = no problems, 1 = conflicts, invalid ratings or errors, 2 = usage error.
 
 ## 3. Non-functional Requirements
 
@@ -65,6 +87,8 @@ Images edited with DxO PhotoLab are to be efficiently imported into Apple Photos
 
 - **Icon generator** (`create_icon.py`): Build-time tool. Generates `dxo2photos.icns` at all required macOS icon resolutions using Pillow. Called by `build_app.sh` if the icon file does not already exist. Python is not required at runtime.
 
+- **Rating check tool** (`dxo2photos_ratings.sh`): Command-line tool for existing images (see 2.5). Bash 3.2 compatible; requires only `exiftool`.
+
 - **Test image generator** (`dxo2photos_testgen.py`): Development tool. Creates JPEG test images with EXIF star ratings 0–5 in `TestImages/`.
 
 ### 4.2 Why pure AppleScript (no Python subprocess)
@@ -94,12 +118,15 @@ and maintain.
 | Handler | Responsibility |
 |---|---|
 | `on open` | Main entry point; orchestrates all steps |
-| `on run` | Shows info dialog when launched without files |
-| `getOutputDir` | Reads output dir from bundle resource |
+| `on run` | Shows About dialog with settings when launched without files |
+| `readConfig / readBoolConfig / writeConfig` | Per-user settings with bundle fallback |
+| `getOutputDir` | Output directory from settings |
+| `getRatingSettings` | `keepStarRating` / `writeRatingKeyword` from settings |
+| `chooseRatingMode` | Dialog for the star rating mode |
 | `findExiftool` | Locates exiftool binary via PATH |
-| `getExifRating` | Reads star rating via exiftool |
-| `getExifDatetime` | Reads DateTimeOriginal via exiftool |
-| `setExifKeyword` | Writes IPTC keyword via exiftool (remove + add) |
+| `getExifMetadata` | Reads star rating and DateTimeOriginal in one exiftool call |
+| `applyRatingSettings` | Decides keyword / rating removal for one file |
+| `writeRatingMetadata` | Writes star keyword and/or deletes rating via exiftool |
 | `buildTargetDir` | Constructs grandparent/parent target path |
 | `exifDateToTouchFormat` | Converts EXIF date to `touch -t` format |
 | `importToPhotos` | Sends Apple Events to Photos to import files |
@@ -132,6 +159,11 @@ ln -s "$PWD/dxo2photos.app" /Applications/dxo2photos.app
 - Images with 1–5 stars receive the correct keyword (e.g. `3*`).
 - Unrated images receive the keyword `0*`.
 - Applying the same keyword twice results in exactly one keyword occurrence.
+- An outdated star keyword (e.g. `3*` on a 5-star image) is replaced, not kept.
+- Rating mode "Keep star rating only": no metadata is changed.
+- Rating mode "Keyword only": keyword written, all rating tags removed.
+- Unrated images get the capture date as modification date.
+- `dxo2photos_ratings.sh`: every status is detected; `--modify`, `--modify --delete` and `--modify --keep stars|keyword` produce the expected status; `--keep` without a value is rejected; `CONFLICT`/`INVALID`/read-only files are not modified and lead to exit status 1; modification dates are unchanged.
 - `_openWith` suffix is correctly removed from filenames.
 - Grandparent/parent subdirectory structure is preserved in the target directory.
 - Modification date of the target file matches the EXIF `DateTimeOriginal`.
@@ -143,8 +175,8 @@ ln -s "$PWD/dxo2photos.app" /Applications/dxo2photos.app
 
 ## 7. Assumptions and Constraints
 
-- DxO exports images with EXIF star ratings (EXIF tag 18246).
+- DxO exports images with star ratings in XMP and/or EXIF (tag 18246).
 - Apple Photos is installed and configured on the system.
 - `exiftool` is installed via Homebrew (`brew install exiftool`).
-- Keyword format: "X*" (e.g. 3 stars → "3*", unrated → "0*"). The original star rating is preserved in the EXIF data.
-- If the output directory needs to change, `bash build_app.sh` must be run again.
+- Keyword format: "X*" (e.g. 3 stars → "3*", unrated → "0*"). By default the original star rating is kept in the file.
+- HEIC files cannot hold IPTC keywords; `dxo2photos_ratings.sh` therefore does not scan them.

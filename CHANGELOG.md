@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Configurable star rating handling ("Star ratings…" button in the About
+  dialog, or `defaults write` keys `keepStarRating` / `writeRatingKeyword`):
+  keep the star rating and add the keyword (default, previous behaviour),
+  keep the star rating only, or keyword only (star rating removed).
+- `dxo2photos_ratings.sh`: command-line tool that checks image files or
+  directories for star ratings and star keywords (`0*`–`5*`). `--modify`
+  writes the missing value (keyword from rating or rating from keyword),
+  `--delete` additionally removes the original value, `--keep stars|keyword`
+  leaves only the given value in every file (also in files that have both).
+  Conflicting values are reported and never modified.
+
+### Changed
+- The star rating is read from `XMP-xmp:Rating`, falling back to EXIF
+  `IFD0:Rating` (previously exiftool's generic `Rating`).
+- Writing the star keyword now removes any other star keyword first, so an
+  image re-exported with a new rating no longer ends up with two (e.g. `3*`
+  and `5*`).
+- Ratings outside 0–5 (e.g. `-1` = rejected) are reported in the error dialog
+  and leave the metadata unchanged, instead of producing a keyword like `-1*`.
+
+### Fixed
+- Unrated images did not get their modification date set to the capture
+  date: without `-m`, exiftool suppressed the whole output line when the
+  rating tag was missing, so `DateTimeOriginal` was lost as well.
+
 ## [2.2.0] - 2026-05-17
 
 ### Added
