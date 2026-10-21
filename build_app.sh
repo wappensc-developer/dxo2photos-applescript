@@ -68,8 +68,8 @@ PLIST="$APP/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set  :CFBundleIconFile             dxo2photos"                              "$PLIST"
 /usr/libexec/PlistBuddy -c "Set  :CFBundleIconName             dxo2photos"                              "$PLIST"
 /usr/libexec/PlistBuddy -c "Add  :CFBundleIdentifier    string de.wappensc.dxo2photos"                  "$PLIST"
-/usr/libexec/PlistBuddy -c "Set  :CFBundleShortVersionString 2.2.0" "$PLIST" 2>/dev/null || \
-/usr/libexec/PlistBuddy -c "Add  :CFBundleShortVersionString string 2.2.0" "$PLIST"
+/usr/libexec/PlistBuddy -c "Set  :CFBundleShortVersionString 2.3.0" "$PLIST" 2>/dev/null || \
+/usr/libexec/PlistBuddy -c "Add  :CFBundleShortVersionString string 2.3.0" "$PLIST"
 /usr/libexec/PlistBuddy -c "Set  :NSAppleEventsUsageDescription \
     'dxo2photos needs to send Apple Events to Photos to import images.'" "$PLIST" 2>/dev/null || \
 /usr/libexec/PlistBuddy -c "Add  :NSAppleEventsUsageDescription string \

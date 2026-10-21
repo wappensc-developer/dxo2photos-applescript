@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.3.0] - 2026-10-21
 
 ### Added
 - Configurable star rating handling ("Star ratings…" button in the About
@@ -31,9 +31,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and leave the metadata unchanged, instead of producing a keyword like `-1*`.
 
 ### Fixed
+- Images without a capture date (`DateTimeOriginal`, e.g. pictures received
+  via messenger apps) got the keyword `0*` although they had a star rating:
+  without `-m`, exiftool suppressed the whole output line when one tag was
+  missing, so the rating was lost as well. Affected images show up as
+  `CONFLICT` in `dxo2photos_ratings.sh` and can be repaired with
+  `dxo2photos_ratings.sh --modify --prefer stars`.
 - Unrated images did not get their modification date set to the capture
-  date: without `-m`, exiftool suppressed the whole output line when the
-  rating tag was missing, so `DateTimeOriginal` was lost as well.
+  date, for the same reason: the missing rating tag suppressed
+  `DateTimeOriginal` as well.
 
 ## [2.2.0] - 2026-05-17
 

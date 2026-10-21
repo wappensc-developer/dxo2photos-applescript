@@ -1,6 +1,6 @@
 # Program Specification: dxo2photos
 
-**Version:** 2.0.0 | **Date:** 2026-10-21 | **Author:** [wappensc](https://github.com/wappensc)
+**Version:** 2.3.0 | **Date:** 2026-10-21 | **Author:** [wappensc](https://github.com/wappensc)
 
 ## 1. Introduction
 
