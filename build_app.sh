@@ -76,15 +76,7 @@ PLIST="$APP/Contents/Info.plist"
     'dxo2photos needs to send Apple Events to Photos to import images.'" "$PLIST"
 
 # ---------------------------------------------------------------------------
-# 5. Sign the app so macOS can track Automation permission by bundle identifier.
-#    Without a bound Info.plist in the signature, the TCC permission dialog
-#    shows an "Edit" button (Script Editor) instead of "Allow / Don't Allow".
-# ---------------------------------------------------------------------------
-echo "[build] Signing app (ad-hoc) ..."
-codesign --force --deep --sign - "$APP"
-
-# ---------------------------------------------------------------------------
-# 6. Write output directory into bundle (prompted, default: ~/Pictures/ExportedImages)
+# 5. Write output directory into bundle (prompted, default: ~/Pictures/ExportedImages)
 # ---------------------------------------------------------------------------
 DEFAULT_OUTPUT="$HOME/Pictures/ExportedImages"
 if [[ -t 0 ]]; then
@@ -107,11 +99,22 @@ defaults write "$APP/Contents/Resources/config" outputDirectory "$OUTPUT_DIR"
 echo "[build] Output directory: $OUTPUT_DIR"
 
 # ---------------------------------------------------------------------------
-# 7. Install custom icon
+# 6. Install custom icon
 # ---------------------------------------------------------------------------
 echo "[build] Installing icon ..."
 cp "$DIR/dxo2photos.icns" "$APP/Contents/Resources/dxo2photos.icns"
 touch "$APP"   # prompt Finder to refresh icon cache
+
+# ---------------------------------------------------------------------------
+# 7. Sign the app so macOS can track Automation permission by bundle identifier.
+#    Without a bound Info.plist in the signature, the TCC permission dialog
+#    shows an "Edit" button (Script Editor) instead of "Allow / Don't Allow".
+#    Must be the last step: any file added to the bundle afterwards (config,
+#    icon) invalidates the signature.
+# ---------------------------------------------------------------------------
+echo "[build] Signing app (ad-hoc) ..."
+codesign --force --deep --sign - "$APP"
+codesign --verify --deep --strict "$APP"
 
 # ---------------------------------------------------------------------------
 # Done
