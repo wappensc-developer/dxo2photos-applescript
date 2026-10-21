@@ -16,7 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   writes the missing value (keyword from rating or rating from keyword),
   `--delete` additionally removes the original value, `--keep stars|keyword`
   leaves only the given value in every file (also in files that have both).
-  Conflicting values are reported and never modified.
+  Conflicting values are reported and only modified with
+  `--prefer stars|keyword`, which takes the given value as correct and
+  overwrites the other one (e.g. replaces a wrong `0*` keyword with the
+  keyword matching the star rating).
 
 ### Changed
 - The star rating is read from `XMP-xmp:Rating`, falling back to EXIF

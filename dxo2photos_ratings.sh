@@ -43,6 +43,15 @@ Options:
                    is "stars" or "keyword". Writes it where it is missing and
                    deletes the other value, also in OK files.
                    Cannot be combined with --delete.
+  -p, --prefer WHAT
+                   with --modify: resolve conflicts by taking WHAT ("stars"
+                   or "keyword") as the correct value and overwriting the
+                   other one. A resolved file is then treated like an OK
+                   file (--keep applies, --delete leaves it unchanged).
+                   stars:   fixes "rating and keyword differ" and "several
+                            star keywords"
+                   keyword: fixes "rating and keyword differ" and "XMP and
+                            EXIF ratings differ" (needs one star keyword)
   -b, --backup     with --modify: keep each original as FILE_original
   -q, --quiet      list only files that need changes or have problems
   -h, --help       show this help
@@ -53,14 +62,15 @@ Status per file:
   KEYWORD   star keyword only                   --modify adds the star rating
   NONE      neither
   CONFLICT  star rating and keyword differ, several star keywords, or XMP
-            and EXIF ratings differ             never modified
+            and EXIF ratings differ             modified only with --prefer
   INVALID   rating outside 0–5 (e.g. -1 = rejected)  never modified
   ERROR     file could not be read or written
 
 Star ratings are written to XMP-xmp:Rating and EXIF IFD0:Rating, keywords to
 IPTC:Keywords. File modification dates are preserved.
 
-Exit status: 0 no problems, 1 conflicts, invalid ratings or errors, 2 usage error.
+Exit status: 0 no problems, 1 conflicts (unless resolved by --prefer), invalid
+ratings or errors, 2 usage error.
 EOF
 }
 
@@ -72,7 +82,7 @@ die_usage() {
 
 # ── Options ───────────────────────────────────────────────────────────────────
 
-recursive=0 modify=0 delete=0 backup=0 quiet=0 keep=""
+recursive=0 modify=0 delete=0 backup=0 quiet=0 keep="" prefer=""
 paths=()
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -83,6 +93,10 @@ while [ $# -gt 0 ]; do
                         keep=$2; shift ;;
         --keep=*)       keep=${1#--keep=}
                         [ -n "$keep" ] || die_usage "--keep needs a value: stars or keyword" ;;
+        -p|--prefer)    [ $# -ge 2 ] && [ -n "$2" ] || die_usage "$1 needs a value: stars or keyword"
+                        prefer=$2; shift ;;
+        --prefer=*)     prefer=${1#--prefer=}
+                        [ -n "$prefer" ] || die_usage "--prefer needs a value: stars or keyword" ;;
         -b|--backup)    backup=1 ;;
         -q|--quiet)     quiet=1 ;;
         -h|--help)      usage; exit 0 ;;
@@ -107,6 +121,11 @@ case "$keep" in
 esac
 [ -z "$keep" ] || [ $modify -eq 1 ] || die_usage "--keep requires --modify"
 [ -z "$keep" ] || [ $delete -eq 0 ] || die_usage "--keep cannot be combined with --delete"
+case "$prefer" in
+    ""|stars|keyword) ;;
+    *) die_usage "invalid value for --prefer: '$prefer' (use stars or keyword)" ;;
+esac
+[ -z "$prefer" ] || [ $modify -eq 1 ] || die_usage "--prefer requires --modify"
 # strip: delete the original value after writing the other one
 if [ $delete -eq 1 ] || [ -n "$keep" ]; then strip=1; else strip=0; fi
 
@@ -145,10 +164,12 @@ show_exiftool_errors() {
     done < "$1"
 }
 
-# classify XMP_RATING EXIF_RATING KEYWORDS → sets C_STATUS, C_STARS, C_KW, C_NOTE
+# classify XMP_RATING EXIF_RATING KEYWORDS
+#   → sets C_STATUS, C_STARS, C_KW, C_NOTE, and for CONFLICT C_KIND:
+#     ratings (XMP ≠ EXIF), keywords (several star keywords), differ (rating ≠ keyword)
 classify() {
     local xmp=$1 exif=$2 kws=$3 k IFS=$LS
-    C_STATUS="" C_STARS="" C_KW="" C_NOTE=""
+    C_STATUS="" C_STARS="" C_KW="" C_NOTE="" C_KIND=""
 
     for k in $kws; do   # distinct star keywords, space separated
         case "$k" in
@@ -157,13 +178,14 @@ classify() {
     done
 
     if [ -n "$xmp" ] && [ -n "$exif" ] && [ "$xmp" != "$exif" ]; then
-        C_STARS="$xmp/$exif" C_STATUS=CONFLICT C_NOTE="XMP rating $xmp, EXIF rating $exif"
+        C_STARS="$xmp/$exif" C_STATUS=CONFLICT C_KIND=ratings
+        C_NOTE="XMP rating $xmp, EXIF rating $exif"
         return
     fi
     C_STARS=${xmp:-$exif}
 
     case "$C_KW" in
-        *" "*) C_STATUS=CONFLICT C_NOTE="several star keywords"; return ;;
+        *" "*) C_STATUS=CONFLICT C_KIND=keywords C_NOTE="several star keywords"; return ;;
     esac
     case "$C_STARS" in
         ""|[0-5]) ;;
@@ -174,8 +196,35 @@ classify() {
     elif [ -z "$C_KW" ];                     then C_STATUS=STARS
     elif [ -z "$C_STARS" ];                  then C_STATUS=KEYWORD
     elif [ "$C_KW" = "$C_STARS*" ];          then C_STATUS=OK
-    else C_STATUS=CONFLICT C_NOTE="star rating and keyword differ"
+    else C_STATUS=CONFLICT C_KIND=differ C_NOTE="star rating and keyword differ"
     fi
+}
+
+# plan_conflict PATH — for a CONFLICT file (after classify) with --prefer:
+# queues the write that makes it OK (or, with --keep, leaves only that value)
+# and sets $note. Files that --prefer cannot resolve keep their conflict.
+planned=0
+plan_conflict() {
+    local path=$1 n="" lst action
+    case "$prefer:$C_KIND" in
+        stars:differ|stars:keywords)    case "$C_STARS" in [0-5]) n=$C_STARS ;; esac ;;
+        keyword:differ|keyword:ratings) case "$C_KW" in [0-5]\*) n=${C_KW%\*} ;; esac ;;
+    esac
+    if [ -z "$n" ]; then
+        note="$C_NOTE, not resolved by --prefer $prefer"
+        return
+    fi
+    case "$prefer:$keep" in
+        stars:stars)     lst=fix_del_kw  action="delete keyword" ;;
+        stars:keyword)   lst=fix_kw_$n   action="set keyword $n*, delete star rating" ;;
+        stars:*)         lst=fix_kw_$n   action="set keyword $n*" ;;
+        keyword:keyword) lst=fix_del_rt  action="delete star rating" ;;
+        keyword:stars)   lst=fix_rt_$n   action="set star rating $n, delete keyword" ;;
+        keyword:*)       lst=fix_rt_$n   action="set star rating $n" ;;
+    esac
+    printf '%s\n' "$path" >> "$tmp/$lst.lst"
+    note="$C_NOTE, $action"
+    planned=$((planned + 1))
 }
 
 # ── Collect files ─────────────────────────────────────────────────────────────
@@ -249,6 +298,7 @@ while IFS=$FS read -r err xmp exif kws path; do
                        note="delete keyword" ;;
             OK:keyword) printf '%s\n' "$path" >> "$tmp/del_rt.lst"
                        note="delete star rating" ;;
+            CONFLICT:*) [ -z "$prefer" ] || plan_conflict "$path" ;;
         esac
     fi
     if [ $quiet -eq 1 ] && [ -z "$note" ]; then   # nothing to do for this file
@@ -263,16 +313,18 @@ show_exiftool_errors "$tmp/read.err"
 
 # ── Modify ────────────────────────────────────────────────────────────────────
 
-written=0 write_failed=0
+written=0 write_failed=0 resolved=0
 if [ $modify -eq 1 ]; then
     write_opts=(-q -P)
     [ $backup -eq 1 ] || write_opts+=(-overwrite_original_in_place)
 
     # write_group LIST EXPECTED_STATUS EXIFTOOL_ARGS...
     # Writes all files in LIST, then re-reads them to confirm the new state.
+    # Sets group_ok to the number of files that reached EXPECTED_STATUS.
     write_group() {
         local lst=$1 want=$2 err xmp exif kws path verified=0 listed
         shift 2
+        group_ok=0
         exiftool "${write_opts[@]}" "$@" -@ "$lst" 2> "$tmp/write.err"
         sed 's/^/exiftool: /' "$tmp/write.err" >&2   # details; failures are listed below
         read_meta "$lst" "$tmp/verify.out" "$tmp/verify.err"
@@ -280,6 +332,7 @@ if [ $modify -eq 1 ]; then
             classify "$xmp" "$exif" "$kws"
             if [ -z "$err" ] && [ "$C_STATUS" = "$want" ]; then
                 written=$((written + 1))
+                group_ok=$((group_ok + 1))
             else
                 show ERROR "$C_STARS" "$C_KW" "$path" "write failed, status now ${err:-$C_STATUS}"
                 write_failed=$((write_failed + 1))
@@ -311,6 +364,38 @@ if [ $modify -eq 1 ]; then
     # --keep: OK files lose the other value
     [ ! -s "$tmp/del_kw.lst" ] || write_group "$tmp/del_kw.lst" STARS "${KEYWORD_DELETE_ARGS[@]}"
     [ ! -s "$tmp/del_rt.lst" ] || write_group "$tmp/del_rt.lst" KEYWORD "${RATING_DELETE_ARGS[@]}"
+
+    # --prefer: conflicts get the preferred value (lists built by plan_conflict)
+    for n in 0 1 2 3 4 5; do
+        lst="$tmp/fix_kw_$n.lst"   # --prefer stars: replace all star keywords with n*
+        if [ -s "$lst" ]; then
+            if [ "$keep" = keyword ]; then
+                write_group "$lst" KEYWORD "${KEYWORD_DELETE_ARGS[@]}" "-IPTC:Keywords+=$n*" "${RATING_DELETE_ARGS[@]}"
+            else
+                write_group "$lst" OK "${KEYWORD_DELETE_ARGS[@]}" "-IPTC:Keywords+=$n*"
+            fi
+            resolved=$((resolved + group_ok))
+        fi
+        lst="$tmp/fix_rt_$n.lst"   # --prefer keyword: set XMP and EXIF rating to n
+        if [ -s "$lst" ]; then
+            if [ "$keep" = stars ]; then
+                write_group "$lst" STARS "-XMP-xmp:Rating=$n" "-IFD0:Rating=$n" "${KEYWORD_DELETE_ARGS[@]}"
+            else
+                write_group "$lst" OK "-XMP-xmp:Rating=$n" "-IFD0:Rating=$n"
+            fi
+            resolved=$((resolved + group_ok))
+        fi
+    done
+    lst="$tmp/fix_del_kw.lst"      # --prefer stars --keep stars
+    if [ -s "$lst" ]; then
+        write_group "$lst" STARS "${KEYWORD_DELETE_ARGS[@]}"
+        resolved=$((resolved + group_ok))
+    fi
+    lst="$tmp/fix_del_rt.lst"      # --prefer keyword --keep keyword
+    if [ -s "$lst" ]; then
+        write_group "$lst" KEYWORD "${RATING_DELETE_ARGS[@]}"
+        resolved=$((resolved + group_ok))
+    fi
 fi
 
 # ── Summary ───────────────────────────────────────────────────────────────────
@@ -324,6 +409,7 @@ echo
 echo "Checked $total files: $summary"
 if [ $modify -eq 1 ]; then
     echo "Modified $written files."
+    [ $resolved -eq 0 ] || echo "Resolved $resolved conflicts with --prefer $prefer."
     [ $write_failed -eq 0 ] || echo "Failed to modify $write_failed files (see ERROR lines above)."
     if [ $delete -eq 1 ] && [ "$n_OK" -gt 0 ]; then
         echo "$n_OK files have both a star rating and a keyword and were left unchanged."
@@ -332,6 +418,11 @@ if [ $modify -eq 1 ]; then
 elif [ $((n_STARS + n_KEYWORD)) -gt 0 ]; then
     echo "Run with --modify to add the missing values."
 fi
+if [ -z "$prefer" ] && [ "$n_CONFLICT" -gt 0 ]; then
+    echo "To resolve conflicts, run with --modify --prefer stars (or --prefer keyword)."
+fi
 
-problems=$((n_CONFLICT + n_INVALID + n_ERROR + write_failed + arg_errors))
+# Conflicts queued for --prefer are no problem; if their write failed, it
+# is counted in write_failed.
+problems=$((n_CONFLICT - planned + n_INVALID + n_ERROR + write_failed + arg_errors))
 [ $problems -eq 0 ] && exit 0 || exit 1

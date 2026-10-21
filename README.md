@@ -107,9 +107,12 @@ If both are set to `false`, the star rating is kept, so a rating is never lost.
 ./dxo2photos_ratings.sh -r --modify --delete image.jpg folder/  # convert: keep only the new value
 ./dxo2photos_ratings.sh -r --modify --keep stars folder/         # star rating only in every file
 ./dxo2photos_ratings.sh -r --modify --keep keyword folder/       # keyword only in every file
+./dxo2photos_ratings.sh -r --modify --prefer stars folder/       # resolve conflicts: star rating wins
 ```
 
 `--delete` leaves `OK` files (rating and keyword both present) unchanged. `--keep stars` or `--keep keyword` ends with only that value in every file: it is written where missing, and the other value is deleted, also in `OK` files. `--keep` cannot be combined with `--delete`.
+
+Conflicts are only changed with `--prefer stars` or `--prefer keyword`, which names the value to trust; the other one is overwritten and the file becomes `OK` (`--keep` then applies as usual). `--prefer stars` fixes a keyword that differs from the rating and several star keywords; `--prefer keyword` fixes a rating that differs from the keyword and differing XMP and EXIF ratings. Other conflicts are reported as not resolved.
 
 | Status | Meaning | With `--modify` |
 |---|---|---|
@@ -117,7 +120,7 @@ If both are set to `false`, the star rating is kept, so a rating is never lost.
 | `STARS` | star rating only | keyword added (`--delete`: rating removed) |
 | `KEYWORD` | star keyword only | star rating added (`--delete`: keyword removed) |
 | `NONE` | neither | unchanged |
-| `CONFLICT` | rating and keyword differ, several star keywords, or XMP and EXIF ratings differ | unchanged, reported as error |
+| `CONFLICT` | rating and keyword differ, several star keywords, or XMP and EXIF ratings differ | unchanged, reported as error (`--prefer`: resolved) |
 | `INVALID` | rating outside 0–5 (e.g. `-1` = rejected) | unchanged, reported as error |
 
 Directories are scanned for JPEG, TIFF and DNG files; `-r` includes subdirectories. Hidden files and Photos libraries (`*.photoslibrary`) are skipped. Modification dates are preserved; `--backup` keeps each original as `FILE_original`. Run `./dxo2photos_ratings.sh --help` for all options.

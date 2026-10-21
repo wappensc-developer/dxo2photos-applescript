@@ -1,6 +1,6 @@
 # Program Specification: dxo2photos
 
-**Version:** 2.0.0 | **Date:** 2026-05-07 | **Author:** [wappensc](https://github.com/wappensc)
+**Version:** 2.0.0 | **Date:** 2026-10-21 | **Author:** [wappensc](https://github.com/wappensc)
 
 ## 1. Introduction
 
@@ -50,11 +50,15 @@ If both booleans are `false`, `keepStarRating` is treated as `true` so a rating 
 ### 2.5 Checking existing images (`dxo2photos_ratings.sh`)
 - **Input:** image files and/or directories (JPEG, TIFF, DNG; `-r` for subdirectories). Hidden files and `*.photoslibrary` bundles are skipped; `--modify` refuses paths inside a Photos library.
 - **Check:** for each file, report the status `OK` (rating and keyword equal), `STARS` (rating only), `KEYWORD` (keyword only), `NONE`, `CONFLICT` (rating and keyword differ, several star keywords, or XMP and EXIF ratings differ), `INVALID` (rating outside 0–5) or `ERROR`.
-- **`--modify`:** `STARS` → write the keyword; `KEYWORD` → write the star rating (`XMP-xmp:Rating` and `IFD0:Rating`). `CONFLICT` and `INVALID` files are never modified.
+- **`--modify`:** `STARS` → write the keyword; `KEYWORD` → write the star rating (`XMP-xmp:Rating` and `IFD0:Rating`). `CONFLICT` files are modified only with `--prefer`; `INVALID` files are never modified.
 - **`--delete`** (only with `--modify`): after writing, delete the original value (rating tags or star keyword). Files with status `OK` stay unchanged.
 - **`--keep stars|keyword`** (only with `--modify`, not with `--delete`): every file ends with only the given value. It is written where missing (then the other value is deleted); `OK` files lose the other value; files that already have only the given value stay unchanged.
+- **`--prefer stars|keyword`** (only with `--modify`): resolves `CONFLICT` files by taking the given value as correct and overwriting the other one; the file then has status `OK`, and `--keep` applies to it as to other `OK` files (`--delete` leaves it unchanged).
+  - `stars` resolves "rating and keyword differ" and "several star keywords" (all star keywords are replaced by the one matching the rating). It needs a valid rating 0–5.
+  - `keyword` resolves "rating and keyword differ" and "XMP and EXIF ratings differ" (both ratings are set from the keyword). It needs exactly one star keyword.
+  - Other conflicts stay unchanged and are reported as "not resolved by --prefer". Other keywords are never touched.
 - Every modified file is re-read to confirm the new status. File modification dates are preserved (`-P`), files are rewritten in place; `--backup` keeps `FILE_original`.
-- Exit status: 0 = no problems, 1 = conflicts, invalid ratings or errors, 2 = usage error.
+- Exit status: 0 = no problems, 1 = conflicts (not resolved by `--prefer`), invalid ratings or errors, 2 = usage error.
 
 ## 3. Non-functional Requirements
 
@@ -164,6 +168,7 @@ ln -s "$PWD/dxo2photos.app" /Applications/dxo2photos.app
 - Rating mode "Keyword only": keyword written, all rating tags removed.
 - Unrated images get the capture date as modification date.
 - `dxo2photos_ratings.sh`: every status is detected; `--modify`, `--modify --delete` and `--modify --keep stars|keyword` produce the expected status; `--keep` without a value is rejected; `CONFLICT`/`INVALID`/read-only files are not modified and lead to exit status 1; modification dates are unchanged.
+- `dxo2photos_ratings.sh --modify --prefer stars|keyword`: each conflict type is resolved as specified in 2.5 (also combined with `--keep stars|keyword` and `--delete`), unresolvable conflicts stay unchanged and lead to exit status 1, other keywords are kept; exit status 0 when all conflicts are resolved; `--prefer` without `--modify` or with an invalid value is rejected.
 - `_openWith` suffix is correctly removed from filenames.
 - Grandparent/parent subdirectory structure is preserved in the target directory.
 - Modification date of the target file matches the EXIF `DateTimeOriginal`.
