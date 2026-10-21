@@ -1,6 +1,6 @@
 # dxo2photos
 
-[![Version](https://img.shields.io/badge/version-2.3.0-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.3.1-blue)](CHANGELOG.md)
 [![Platform](https://img.shields.io/badge/platform-macOS-lightgrey)](https://www.apple.com/macos/)
 [![AppleScript](https://img.shields.io/badge/language-AppleScript-orange)](dxo2photos.applescript)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)

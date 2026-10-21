@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.1] - 2026-10-21
+
+### Fixed
+- `build_app.sh` signed the app before writing `config.plist` and the icon
+  into the bundle, so the code signature was invalid ("a sealed resource is
+  missing or invalid"). Signing is now the last build step and is verified.
+
+### Changed
+- The repository moved to
+  `github.com/wappensc-developer/dxo2photos-applescript`. The clone URL and
+  links in the README, the specification and the About dialog point to the
+  new location and the author account `wappensc-developer`.
+
 ## [2.3.0] - 2026-10-21
 
 ### Added
