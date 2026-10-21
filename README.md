@@ -7,7 +7,7 @@
 
 A macOS tool that automates the workflow for processing images edited with DxO PhotoLab. It converts star ratings into IPTC keywords, moves images into a defined folder structure, imports them into Apple Photos, and integrates directly into DxO PhotoLab as an external program via a native macOS app bundle.
 
-**Author:** [wappensc](https://github.com/wappensc)
+**Author:** [wappensc](https://github.com/wappensc-developer)
 
 ## Prerequisites
 
@@ -27,8 +27,8 @@ brew install exiftool
 ### 2. Clone the project directory
 
 ```
-git clone https://github.com/wappensc/dxo2photos.git
-cd dxo2photos
+git clone https://github.com/wappensc-developer/dxo2photos-applescript.git
+cd dxo2photos-applescript
 ```
 
 ### 3. Run the build script
@@ -71,7 +71,7 @@ If the dialog does not appear and imports are silently skipped, open System Sett
 
 EXIF metadata operations (reading star ratings, writing keywords, setting modification dates) are performed via `exiftool` through `do shell script`.
 
-**Root cause of the original Photos import failure:** The problem was not the Python/`osascript` subprocess chain but a missing `CFBundleIdentifier` and an unbound Info.plist in the code signature. Without these, macOS could not track the Automation permission per app and showed "Edit in Script Editor" instead of the expected "Allow / Don't Allow" dialog. The same fix was backported to the Python-based architecture as [v1.0.1](https://github.com/wappensc/dxo2photos/tree/v1-bugfix). v2 remains the main version as it additionally removes the Python runtime dependency.
+**Root cause of the original Photos import failure:** The problem was not the Python/`osascript` subprocess chain but a missing `CFBundleIdentifier` and an unbound Info.plist in the code signature. Without these, macOS could not track the Automation permission per app and showed "Edit in Script Editor" instead of the expected "Allow / Don't Allow" dialog. The same fix was backported to the Python-based architecture as [v1.0.1](https://github.com/wappensc-developer/dxo2photos-applescript/tree/v1-bugfix). v2 remains the main version as it additionally removes the Python runtime dependency.
 
 ## Configuration
 

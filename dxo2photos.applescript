@@ -425,7 +425,7 @@ on run
     set ratingLabel to item (ratingModeIndex(getRatingSettings())) of ratingModeLabels()
     set answer to button returned of (display alert titleLine ¬
         message "Author: wappensc" & return & ¬
-            "https://github.com/wappensc" & return & return & ¬
+            "https://github.com/wappensc-developer" & return & return & ¬
             "Drop DxO PhotoLab exports here," & return & ¬
             "or add as External Program in DxO." & return & return & ¬
             "Output directory:" & return & outDir & return & return & ¬
